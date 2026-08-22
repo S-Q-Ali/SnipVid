@@ -1,0 +1,1424 @@
+# Build a Production-Ready Universal Video Toolkit
+
+You are an expert full-stack engineer, UI/UX designer, DevOps engineer, FFmpeg specialist, and technical SEO engineer.
+
+Build a **complete, production-quality web application** called **VideoToolkit**.
+
+This must be a REAL working application, not a prototype, mockup, static frontend, or fake SaaS dashboard.
+
+Do not create fake download buttons, fake progress bars, placeholder conversion results, or simulated processing.
+
+Every major feature must be connected to a real backend implementation and tested.
+
+---
+
+# 1. PRODUCT GOAL
+
+Build an all-in-one online video utility platform that allows users to:
+
+1. Download publicly accessible videos from supported URLs/platforms.
+2. Convert uploaded videos between common video formats.
+3. Convert MPEG-4 files/videos to MP4.
+4. Convert almost any supported input video to MP4.
+5. Extract audio from videos.
+6. Compress videos.
+7. Resize videos.
+8. Crop videos.
+9. Trim videos.
+10. Change FPS.
+11. Change video/audio codecs.
+12. Change bitrate and quality.
+13. Convert videos for different social-media aspect ratios.
+14. Process multiple files/jobs.
+15. Download the final processed files.
+
+The application should feel like a serious professional media utility rather than an "AI-generated website."
+
+---
+
+# 2. IMPORTANT DESIGN DIRECTION
+
+The design MUST NOT look like generic AI-generated SaaS/AI-slop.
+
+DO NOT use:
+
+* giant AI gradients
+* excessive glowing effects
+* random futuristic illustrations
+* robot graphics
+* "Powered by AI" everywhere
+* unnecessary glassmorphism
+* excessive rounded cards
+* huge colorful blobs
+* cheesy AI terminology
+* excessive animations
+* template-looking landing pages
+
+Instead create a professional tool similar in quality and polish to established developer/media utilities.
+
+Design characteristics:
+
+* clean
+* modern
+* premium
+* functional
+* fast
+* typography-focused
+* excellent spacing
+* subtle animations only where useful
+* strong visual hierarchy
+* excellent dark mode
+* excellent light mode
+* responsive on desktop/tablet/mobile
+
+The product should immediately communicate:
+
+"Professional video processing utility."
+
+---
+
+# 3. TECH STACK
+
+Use a modern production-friendly architecture.
+
+Preferred stack:
+
+Frontend:
+
+* Next.js
+* TypeScript
+* React
+* Tailwind CSS
+* accessible component system
+
+Backend:
+
+* Next.js API routes/server actions OR a dedicated Node.js backend where necessary
+* TypeScript
+
+Video processing:
+
+* FFmpeg
+* FFprobe
+
+Downloader:
+
+* use a maintained, legitimate backend downloader implementation/library capable of handling publicly accessible URLs
+* design the downloader as an adapter/service layer so platform-specific implementations can be updated independently
+
+Database:
+
+* PostgreSQL where persistent data is actually needed
+* Prisma ORM
+
+Storage:
+
+* temporary local filesystem for development where appropriate
+* architecture must allow object storage in production
+
+Queue:
+
+* implement a proper job-processing architecture
+* Redis/BullMQ or another suitable queue if required by the deployment environment
+
+Do not over-engineer the first version unnecessarily.
+
+---
+
+# 4. APPLICATION PAGES
+
+Create these pages:
+
+## Homepage
+
+URL:
+
+/
+
+The homepage should immediately present the main functionality.
+
+Hero:
+
+"Your Complete Video Toolkit"
+
+Subtitle explaining that users can download, convert, compress, resize and process videos from one place.
+
+Main interface:
+
+* URL input
+* Upload button
+* drag-and-drop area
+* supported formats/platform information
+* action selector
+* Process button
+
+Example actions:
+
+* Download Video
+* Convert Video
+* Convert to MP4
+* Extract Audio
+* Compress Video
+* Resize Video
+* Trim Video
+* Crop Video
+
+Below the hero:
+
+* popular tools
+* supported formats
+* how it works
+* feature overview
+* FAQ
+* SEO content
+
+---
+
+# 5. VIDEO DOWNLOADER
+
+Create:
+
+/video-downloader
+
+Allow the user to enter a publicly accessible video URL.
+
+Automatically detect the URL/platform where technically possible.
+
+Show:
+
+* platform
+* title
+* thumbnail where legally/technically available
+* duration
+* available formats/qualities where available
+* video/audio options
+* download button
+
+The downloader must use real backend processing.
+
+Do NOT expose downloader implementation details or credentials to the browser.
+
+Do NOT implement bypasses for:
+
+* DRM
+* private content
+* authentication-protected content
+* paywalls
+* access controls
+
+If a URL cannot be processed, return a clear user-friendly error.
+
+---
+
+# 6. SUPPORTED PLATFORM ARCHITECTURE
+
+Do not hard-code the entire downloader into one route.
+
+Create a provider/adapter architecture.
+
+Example conceptual structure:
+
+services/
+downloader/
+DownloaderService
+providers/
+YouTubeProvider
+InstagramProvider
+FacebookProvider
+TikTokProvider
+TwitterProvider
+RedditProvider
+VimeoProvider
+PinterestProvider
+etc.
+
+The exact provider list should depend on what can actually be supported reliably.
+
+The UI can say:
+
+"Supported platforms"
+
+and dynamically reflect available providers.
+
+Do not claim support for a platform unless the implementation actually works.
+
+---
+
+# 7. VIDEO CONVERTER
+
+Create:
+
+/video-converter
+
+Users can upload a video and select output format.
+
+Support common formats including:
+
+* MP4
+* MPEG-4
+* MOV
+* MKV
+* AVI
+* WebM
+* M4V
+* TS
+* FLV
+* 3GP
+* WMV
+
+Where FFmpeg supports additional useful formats, expose them carefully.
+
+---
+
+# 8. MPEG-4 TO MP4
+
+This is a REQUIRED feature.
+
+Create:
+
+/mpeg-4-to-mp4
+
+Also expose it through:
+
+/video-converter
+
+The application must correctly handle cases where:
+
+1. MPEG-4 refers to a compatible codec inside another container.
+2. MPEG-4 refers to a video file/container that needs remuxing or transcoding.
+
+Processing strategy:
+
+FIRST determine whether a simple container remux/stream-copy is possible.
+
+If compatible:
+
+* avoid unnecessary re-encoding
+* preserve quality
+* process quickly
+
+If incompatible:
+
+* transcode using FFmpeg
+* use sensible H.264/AAC MP4 defaults
+
+Do not blindly re-encode every file.
+
+Use FFprobe to inspect:
+
+* container
+* video codec
+* audio codec
+* resolution
+* FPS
+* bitrate
+* duration
+* streams
+
+---
+
+# 9. "ANY VIDEO TO MP4"
+
+Create:
+
+/video-to-mp4
+
+This should be one of the primary SEO tools.
+
+Input:
+
+Any supported video file.
+
+Output:
+
+MP4.
+
+Default settings:
+
+Video:
+
+* H.264
+* reasonable CRF
+* compatible pixel format
+
+Audio:
+
+* AAC
+* sensible bitrate
+
+Container:
+
+* MP4
+
+Automatically determine whether stream copy is safe before transcoding.
+
+---
+
+# 10. VIDEO FORMAT CONVERSION
+
+Create dedicated tools where useful:
+
+/mov-to-mp4
+/mkv-to-mp4
+/webm-to-mp4
+/avi-to-mp4
+/m4v-to-mp4
+/mpeg-to-mp4
+
+Each page should use the same underlying conversion engine.
+
+Do NOT duplicate processing code for every page.
+
+Create reusable conversion services.
+
+---
+
+# 11. AUDIO EXTRACTION
+
+Create:
+
+/video-to-mp3
+
+Also support:
+
+* WAV
+* AAC
+* M4A where appropriate
+
+Allow the user to choose audio bitrate where applicable.
+
+---
+
+# 12. VIDEO COMPRESSOR
+
+Create:
+
+/video-compressor
+
+Options:
+
+* target quality
+* CRF
+* resolution
+* bitrate
+* FPS
+* codec
+
+Provide a simple mode for normal users.
+
+Example:
+
+Compression:
+
+* Small
+* Balanced
+* High Quality
+
+Advanced users can open advanced controls.
+
+Show:
+
+Original size
+Processed size
+Estimated reduction
+Final size
+
+---
+
+# 13. VIDEO RESIZER
+
+Create:
+
+/video-resizer
+
+Presets:
+
+* 1920×1080
+* 1280×720
+* 1080×1920
+* 720×1280
+* 1080×1080
+* 1080×1350
+
+Allow custom width/height.
+
+Maintain aspect ratio by default.
+
+---
+
+# 14. SOCIAL MEDIA PRESETS
+
+Create:
+
+/social-video-converter
+
+Presets:
+
+YouTube:
+16:9
+
+YouTube Shorts:
+9:16
+
+TikTok:
+9:16
+
+Instagram Reels:
+9:16
+
+Instagram Square:
+1:1
+
+Instagram Portrait:
+4:5
+
+Facebook Reels:
+9:16
+
+X/Twitter:
+appropriate landscape/portrait options
+
+Allow custom output settings.
+
+Do not claim platform-specific technical limits unless verified/current.
+
+---
+
+# 15. VIDEO TRIMMER
+
+Create:
+
+/video-trimmer
+
+Features:
+
+* start time
+* end time
+* preview
+* trim
+* export
+
+Use FFmpeg for actual processing.
+
+Do not load huge files entirely into browser memory unnecessarily.
+
+---
+
+# 16. VIDEO CROPPER
+
+Create:
+
+/video-cropper
+
+Allow:
+
+* aspect-ratio presets
+* manual crop
+* center crop
+* social presets
+
+Use FFmpeg processing on the backend.
+
+---
+
+# 17. VIDEO ROTATOR
+
+Create:
+
+/rotate-video
+
+Options:
+
+* 90°
+* 180°
+* 270°
+* horizontal flip
+* vertical flip
+
+---
+
+# 18. GIF CREATOR
+
+Create:
+
+/video-to-gif
+
+Allow:
+
+* start/end time
+* FPS
+* width
+* quality
+
+Generate optimized GIFs.
+
+---
+
+# 19. BATCH PROCESSING
+
+Users should be able to upload multiple files.
+
+Example:
+
+File 1 → MP4
+File 2 → MP4
+File 3 → MP4
+
+Show a queue:
+
+Pending
+Processing
+Completed
+Failed
+
+Each job should have:
+
+* progress
+* status
+* filename
+* output
+* retry
+* cancel where possible
+
+---
+
+# 20. JOB SYSTEM
+
+Do not make long FFmpeg operations block the main HTTP request unnecessarily.
+
+Create a job-processing system.
+
+Concept:
+
+User
+↓
+Create Job
+↓
+Queue
+↓
+Worker
+↓
+FFmpeg
+↓
+Output
+↓
+Storage
+↓
+Download
+
+Job states:
+
+* pending
+* processing
+* completed
+* failed
+* cancelled
+
+Use robust cleanup.
+
+---
+
+# 21. PROGRESS TRACKING
+
+Display real processing progress.
+
+Do not use fake random progress percentages.
+
+Use FFmpeg/FFprobe information to calculate progress based on duration where possible.
+
+Example:
+
+0%
+25%
+50%
+75%
+100%
+
+Show:
+
+"Processing video…"
+
+and useful metadata such as:
+
+* elapsed time
+* estimated remaining time where available
+* output size
+
+---
+
+# 22. FILE MANAGEMENT
+
+Temporary files must be automatically cleaned.
+
+Implement:
+
+* unique job IDs
+* unique temporary directories
+* automatic expiration
+* cleanup workers
+* failed-job cleanup
+* abandoned-job cleanup
+
+Never allow one user's temporary file to be accessed by another user.
+
+Never expose arbitrary filesystem paths.
+
+---
+
+# 23. SECURITY
+
+Implement:
+
+* file size limits
+* upload validation
+* MIME/type validation
+* extension validation
+* filename sanitization
+* path traversal protection
+* command injection protection
+* URL validation
+* SSRF protections
+* rate limiting
+* request validation
+* safe FFmpeg argument construction
+* temporary-file isolation
+* automatic deletion
+
+NEVER construct shell commands using unsanitized user input.
+
+Use safe process spawning/argument arrays.
+
+---
+
+# 24. USER EXPERIENCE
+
+The main workflow should be extremely simple:
+
+1. Paste URL OR upload video.
+2. Choose tool/action.
+3. Choose settings.
+4. Click Process.
+5. Watch real progress.
+6. Download result.
+
+Avoid forcing users through unnecessary pages.
+
+---
+
+# 25. DRAG AND DROP
+
+Upload areas must support:
+
+* drag/drop
+* file picker
+* multiple files
+
+Display:
+
+* filename
+* size
+* type
+* duration where available
+* remove button
+
+---
+
+# 26. ERROR HANDLING
+
+Errors should be human-readable.
+
+Bad:
+
+"FFmpeg exited with code 1."
+
+Better:
+
+"We couldn't process this video. The input codec or container may not be supported."
+
+For developers, keep detailed logs server-side.
+
+Never expose sensitive stack traces to users.
+
+---
+
+# 27. SEO ARCHITECTURE
+
+SEO is a major requirement.
+
+Build technically strong SEO from the beginning.
+
+Every important tool should have its own indexable page.
+
+Example:
+
+/
+/video-downloader
+/video-converter
+/video-to-mp4
+/mpeg-4-to-mp4
+/mov-to-mp4
+/mkv-to-mp4
+/webm-to-mp4
+/avi-to-mp4
+/video-to-mp3
+/video-compressor
+/video-resizer
+/video-trimmer
+/video-cropper
+/video-to-gif
+/social-video-converter
+
+Each page must have unique:
+
+* title
+* meta description
+* H1
+* introductory content
+* FAQs
+* structured data where appropriate
+* internal links
+
+Do NOT duplicate the same paragraph across every page.
+
+---
+
+# 28. SEO CONTENT
+
+Write useful, human-readable content.
+
+For example, the MPEG-4 to MP4 page should explain:
+
+* what MPEG-4 is
+* what MP4 is
+* difference between codec and container
+* when conversion is required
+* when remuxing is sufficient
+* quality considerations
+* how to convert
+* FAQ
+
+Avoid keyword stuffing.
+
+Do not generate obvious AI-slop paragraphs.
+
+Content should be concise, useful, technically accurate and natural.
+
+---
+
+# 29. STRUCTURED DATA
+
+Implement appropriate Schema.org structured data.
+
+Potential types:
+
+* WebApplication
+* SoftwareApplication
+* HowTo where genuinely appropriate
+* FAQPage only when appropriate and compliant with current search guidelines
+* BreadcrumbList
+
+Do not add irrelevant schema.
+
+---
+
+# 30. TECHNICAL SEO
+
+Implement:
+
+* sitemap.xml
+* robots.txt
+* canonical URLs
+* Open Graph
+* Twitter/X metadata
+* clean URLs
+* breadcrumbs
+* semantic HTML
+* proper heading hierarchy
+* image optimization
+* fast loading
+* no unnecessary JavaScript
+* accessible links/buttons
+* descriptive metadata
+
+Create SEO-friendly internal linking between related tools.
+
+Example:
+
+MPEG-4 → MP4 page links to:
+
+Video Converter
+Video Compressor
+Video Resizer
+MOV → MP4
+MKV → MP4
+
+---
+
+# 31. SEO PERFORMANCE
+
+The application must prioritize:
+
+* Core Web Vitals
+* low JavaScript overhead
+* optimized fonts
+* optimized images
+* lazy loading
+* caching
+* server-side rendering/static rendering where appropriate
+* minimal client-side hydration
+
+Do not sacrifice performance for fancy animations.
+
+---
+
+# 32. HOMEPAGE SEO
+
+The homepage should target the broad product intent around:
+
+* online video tools
+* video converter
+* video downloader
+* video compressor
+* video to MP4
+
+But do not stuff keywords unnaturally.
+
+Write content for humans first.
+
+---
+
+# 33. UI COMPONENT SYSTEM
+
+Create reusable components:
+
+Header
+Footer
+ToolCard
+UploadZone
+UrlInput
+FileList
+FormatSelector
+QualitySelector
+AdvancedSettings
+ProgressBar
+JobQueue
+ResultCard
+DownloadButton
+ErrorMessage
+FAQ
+Breadcrumbs
+ToolNavigation
+
+Avoid duplicate UI code.
+
+---
+
+# 34. RESPONSIVE DESIGN
+
+Desktop:
+excellent workspace layout.
+
+Tablet:
+optimized two-column/single-column transition.
+
+Mobile:
+simple vertical workflow.
+
+The main input/action must be usable with one hand on mobile.
+
+Do not make the mobile version a broken desktop layout.
+
+---
+
+# 35. ACCESSIBILITY
+
+Implement:
+
+* keyboard navigation
+* visible focus states
+* proper labels
+* semantic buttons
+* ARIA only where needed
+* sufficient contrast
+* screen-reader-friendly status messages
+
+---
+
+# 36. DARK MODE
+
+Provide excellent dark and light modes.
+
+Do not make dark mode just black backgrounds with random glowing colors.
+
+Use professional neutral surfaces and readable typography.
+
+---
+
+# 37. DATABASE
+
+Only store data that actually needs persistence.
+
+Possible models:
+
+User
+Job
+ConversionJob
+DownloadJob
+FileMetadata
+UsageRecord
+
+Do not permanently store user-uploaded videos unless explicitly required.
+
+Temporary media should expire automatically.
+
+---
+
+# 38. ENVIRONMENT VARIABLES
+
+Create a proper `.env.example`.
+
+Never hard-code:
+
+* API keys
+* database credentials
+* storage credentials
+* secrets
+* tokens
+
+Document all required environment variables.
+
+---
+
+# 39. REPLIT COMPATIBILITY
+
+The application must work properly inside Replit.
+
+Check:
+
+* FFmpeg availability
+* FFprobe availability
+* Node version
+* package installation
+* filesystem behavior
+* process spawning
+* environment variables
+* build command
+* start command
+
+If FFmpeg is not available by default, implement the appropriate Replit-compatible installation/setup strategy.
+
+Do not assume binaries exist without verifying them.
+
+---
+
+# 40. DEVELOPMENT SCRIPTS
+
+Create working scripts such as:
+
+npm run dev
+npm run build
+npm run start
+npm run lint
+npm run test
+
+Add useful FFmpeg diagnostics.
+
+For example, an internal health check should verify:
+
+FFmpeg available
+FFprobe available
+Database available
+Storage available
+Queue available
+
+---
+
+# 41. TESTING
+
+Do not finish the project until the major functionality has been tested.
+
+Test:
+
+* MP4 input → MP4
+* MPEG-4 → MP4
+* MOV → MP4
+* MKV → MP4
+* WebM → MP4
+* AVI → MP4
+* MP4 → MP3
+* compression
+* resizing
+* trimming
+* cropping
+* rotation
+* GIF conversion
+* invalid file
+* oversized file
+* invalid URL
+* unsupported URL
+* failed FFmpeg job
+* concurrent jobs
+* temporary file cleanup
+
+Use automated tests wherever practical.
+
+---
+
+# 42. SAMPLE MEDIA TESTING
+
+Create a small set of test media or use generated synthetic media for development/testing.
+
+Do not depend on copyrighted third-party media for automated tests.
+
+Generate test videos with FFmpeg where practical.
+
+---
+
+# 43. DOWNLOAD RESULT
+
+After successful processing:
+
+Show:
+
+* preview if possible
+* output filename
+* output format
+* resolution
+* duration
+* file size
+
+Buttons:
+
+Download
+Process Another
+Convert Again
+
+---
+
+# 44. FILE NAMING
+
+Use clean output filenames.
+
+Example:
+
+input:
+
+my-video.mov
+
+output:
+
+my-video.mp4
+
+Do not create filenames like:
+
+output_938483838483.mp4
+
+unless necessary internally.
+
+---
+
+# 45. ADMIN/DEBUGGING
+
+Create a development-only diagnostics mechanism.
+
+It should help developers see:
+
+* FFmpeg version
+* FFprobe version
+* queue status
+* storage status
+* database status
+* active jobs
+* failed jobs
+
+Do not expose this publicly in production.
+
+---
+
+# 46. RATE LIMITING
+
+Protect expensive operations.
+
+Downloader and FFmpeg endpoints should have stricter limits than ordinary pages.
+
+Prevent:
+
+* spam conversion
+* excessive concurrent jobs
+* resource exhaustion
+* abusive URL requests
+
+Implement sensible defaults and make them configurable.
+
+---
+
+# 47. RESOURCE LIMITS
+
+Define configurable:
+
+MAX_UPLOAD_SIZE
+MAX_DOWNLOAD_SIZE
+MAX_DURATION
+MAX_CONCURRENT_JOBS
+JOB_TIMEOUT
+TEMP_FILE_RETENTION
+
+Gracefully reject jobs exceeding limits.
+
+---
+
+# 48. DOWNLOAD SAFETY
+
+URL downloading can introduce SSRF and resource-abuse risks.
+
+Validate URLs.
+
+Prevent access to:
+
+* localhost
+* private IP ranges
+* internal network addresses
+* metadata services
+* arbitrary local files
+* dangerous protocols
+
+Only allow supported HTTP/HTTPS URL patterns.
+
+---
+
+# 49. NO FAKE FEATURES
+
+This is extremely important.
+
+Do not implement UI controls that do nothing.
+
+If a feature is shown in the UI, it must work.
+
+If a feature cannot be implemented reliably in the current Replit environment:
+
+1. explain why
+2. hide/disable it appropriately
+3. document what is required
+
+Never fake functionality.
+
+---
+
+# 50. NO PLACEHOLDER CONTENT
+
+Do not leave:
+
+"Lorem ipsum"
+
+"Coming soon"
+
+"TODO"
+
+"Demo"
+
+"Fake download"
+
+or unfinished sections in the production UI.
+
+---
+
+# 51. CODE QUALITY
+
+Use:
+
+* TypeScript strict mode
+* modular services
+* reusable components
+* clear naming
+* error boundaries
+* validation schemas
+* proper logging
+* comments only where useful
+
+Avoid:
+
+* giant files
+* duplicated logic
+* magic numbers
+* unsafe shell commands
+* unnecessary dependencies
+
+---
+
+# 52. FINAL PROJECT STRUCTURE
+
+Use a clean architecture similar to:
+
+app/
+page.tsx
+video-downloader/
+video-converter/
+video-to-mp4/
+mpeg-4-to-mp4/
+mov-to-mp4/
+mkv-to-mp4/
+webm-to-mp4/
+avi-to-mp4/
+video-to-mp3/
+video-compressor/
+video-resizer/
+video-trimmer/
+video-cropper/
+video-to-gif/
+
+components/
+upload/
+converter/
+downloader/
+jobs/
+layout/
+ui/
+
+lib/
+ffmpeg/
+downloader/
+storage/
+queue/
+validation/
+seo/
+security/
+
+services/
+conversion/
+download/
+processing/
+cleanup/
+
+prisma/
+schema.prisma
+
+tests/
+
+public/
+
+---
+
+# 53. IMPORTANT IMPLEMENTATION RULE
+
+Build this incrementally.
+
+PHASE 1:
+Create architecture and core UI.
+
+PHASE 2:
+Implement upload system.
+
+PHASE 3:
+Implement FFmpeg/FFprobe service.
+
+PHASE 4:
+Implement MP4 conversion.
+
+PHASE 5:
+Implement MPEG-4 → MP4.
+
+PHASE 6:
+Implement other conversions.
+
+PHASE 7:
+Implement downloader adapters.
+
+PHASE 8:
+Implement job queue and progress.
+
+PHASE 9:
+Implement compression/resizing/trimming/cropping/GIF.
+
+PHASE 10:
+Implement SEO pages.
+
+PHASE 11:
+Implement security and rate limiting.
+
+PHASE 12:
+Run full tests and fix issues.
+
+Do not move to the next phase while the previous core functionality is broken.
+
+---
+
+# 54. CRITICAL REQUIREMENT FOR REPLIT AGENT
+
+Before coding, inspect the Replit environment.
+
+Determine:
+
+* available Node version
+* available FFmpeg
+* available FFprobe
+* available database
+* available storage
+* available background process capabilities
+
+Then choose the most reliable architecture compatible with the environment.
+
+Do not blindly assume infrastructure.
+
+---
+
+# 55. FINAL ACCEPTANCE CRITERIA
+
+Consider the application complete only when:
+
+[ ] Homepage works
+[ ] URL input works
+[ ] File upload works
+[ ] FFprobe inspection works
+[ ] MPEG-4 → MP4 works
+[ ] MOV → MP4 works
+[ ] MKV → MP4 works
+[ ] WebM → MP4 works
+[ ] AVI → MP4 works
+[ ] Video → MP3 works
+[ ] Compression works
+[ ] Resizing works
+[ ] Trimming works
+[ ] Cropping works
+[ ] Rotation works
+[ ] GIF conversion works
+[ ] Batch processing works
+[ ] Real progress works
+[ ] Job failures are handled
+[ ] Temporary files are cleaned
+[ ] Downloader architecture works for actually supported public platforms
+[ ] Security protections are implemented
+[ ] Rate limiting is implemented
+[ ] SEO pages exist
+[ ] Sitemap works
+[ ] Robots.txt works
+[ ] Canonical URLs work
+[ ] Structured data works
+[ ] Mobile UI works
+[ ] Dark mode works
+[ ] Light mode works
+[ ] Accessibility basics work
+[ ] Production build succeeds
+[ ] Tests pass
+[ ] No fake buttons/features remain
+[ ] No placeholder content remains
+[ ] README is complete
+[ ] `.env.example` exists
+
+---
+
+# 56. MOST IMPORTANT PRODUCT PRINCIPLE
+
+Do not optimize this project for looking impressive in screenshots.
+
+Optimize it for:
+
+**real functionality + speed + reliability + excellent UX + technical SEO + maintainability.**
+
+The result should look like a mature professional video utility product that could realistically be launched publicly.
+
+Start by inspecting the Replit environment and then implement the application systematically.
+
+Handheld smartphone camera recording a behind-the-scenes Hollywood VFX set, documentary shaky cam style, shot on iPhone 15 Pro Max, 4K resolution. A massive, incredibly detailed 1:24 scale miniature diorama of Antwerp featuring the massive port with container ships, historic guild houses, and tiny diamond district buildings built on a massive elevated wooden platform inside a huge dark Hollywood soundstage. The background is a massive blue screen and dark studio environment. Tall C-stands and bright Arri SkyPanel studio lights illuminate the miniature. In the blurry foreground, several VFX crew members wearing high-vis vests, waterproof pants, and safety goggles are watching intently. A massive robotic cinebot camera arm is sweeping over the city. Suddenly, a massive wave-generating tank releases a towering wall of real water that surges up the Scheldt River while powerful wind machines blast the set simultaneously. Hyper-realistic practical effects. The storm surge completely floods the tiny port district and lifts the miniature container ships, crashing them against the historic guild houses along the waterfront. Perfect fluid dynamics, real water force, incredible macro details, tilt-shift miniature effect, shallow depth of field. The crew members throw their hands up cheering as the destruction settles. Cinematic, no CGI look, 100% practical effects illusion.
+Handheld smartphone camera recording a behind-the-scenes Hollywood VFX set, documentary shaky cam style, shot on iPhone 15 Pro Max, 4K resolution. A massive, incredibly detailed 1:24 scale miniature diorama of Da Nang featuring My Khe Beach, the Dragon Bridge, and tiny beachfront resorts built on a massive elevated wooden platform inside a huge dark Hollywood soundstage. The background is a massive blue screen and dark studio environment. Tall C-stands and bright Arri SkyPanel studio lights illuminate the miniature. In the blurry foreground, several VFX crew members wearing black raincoats, rubber boots, and safety goggles are watching intently. A massive robotic cinebot camera arm is sweeping over the city. Suddenly, a bank of giant industrial wind turbines blasts the set at full power while a massive wave tank releases a towering wall of real water from the ocean side. Hyper-realistic practical effects. The typhoon storm surge completely floods My Khe Beach and crashes against the miniature Dragon Bridge, sweeping the tiny beachfront resort buildings away in the churning water. Perfect particle physics, real water splashing, real flying debris, incredible macro details, tilt-shift miniature effect, shallow depth of field. The crew members throw their hands up cheering as the destruction settles. Cinematic, no CGI look, 100% practical effects illusion.
+Handheld smartphone camera recording a behind-the-scenes Hollywood VFX set, documentary shaky cam style, shot on iPhone 15 Pro Max, 4K resolution. A massive, incredibly detailed 1:24 scale miniature diorama of Calgary featuring the Saddledome, the Bow River, and tiny downtown skyscrapers built on a massive elevated wooden platform inside a huge dark Hollywood soundstage. The background is a massive blue screen and dark studio environment. Tall C-stands and bright Arri SkyPanel studio lights illuminate the miniature. In the blurry foreground, several VFX crew members wearing black winter parkas, face coverings, and safety goggles are watching intently. A massive robotic cinebot camera arm is sweeping over the city. Suddenly, a release gate opens and thousands of real ice chunks and cold water surge down the miniature Bow River, piling up against the bridges and causing the water to rapidly rise over the banks. Hyper-realistic practical effects. The ice jam dams the river flow, causing real water and sharp ice slabs to crash into the tiny Saddledome and flood the downtown streets. Perfect ice-and-water interaction, real impact damage, incredible macro details, tilt-shift miniature effect, shallow depth of field. The crew members throw their hands up cheering as the destruction settles. Cinematic, no CGI look, 100% practical effects illusion.
+Handheld smartphone camera recording a behind-the-scenes Hollywood VFX set, documentary shaky cam style, shot on iPhone 15 Pro Max, 4K resolution. A massive, incredibly detailed 1:24 scale miniature diorama of Medellin featuring the Comuna 13 hillside neighborhoods, metro cable cars, and tiny colorful brick houses built on a massive elevated wooden platform inside a huge dark Hollywood soundstage. The background is a massive blue screen and dark studio environment. Tall C-stands and bright Arri SkyPanel studio lights illuminate the miniature. In the blurry foreground, several VFX crew members wearing black t-shirts, respirators, and work boots are watching intently. A massive robotic cinebot camera arm is sweeping over the city. Suddenly, a large overhead hopper releases tons of real wet mud and rocks onto the steepest section of the miniature hillside while water jets further saturate the ground. Hyper-realistic practical effects. The massive landslide completely buries the tiny colorful brick houses and cascades down the mountain, snapping the miniature metro cable lines. Perfect particle dynamics, real mud flow, real physical debris, incredible macro details, tilt-shift miniature effect, shallow depth of field. The crew members throw their hands up cheering as the destruction settles. Cinematic, no CGI look, 100% practical effects illusion.
