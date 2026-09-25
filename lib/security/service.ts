@@ -1,30 +1,3 @@
-import path from "path";
-import os from "os";
-import fs from "fs";
-
-/** URL Validation - Prevent SSRF and dangerous URLs */
-export interface URLValidationResult {
-  valid: boolean;
-  reason?: string;
-  sanitizedUrl?: string;
-}
-
-/** File Security - Validate and sanitize uploaded files */
-export interface FileSecurityResult {
-  valid: boolean;
-  sanitizedName: string;
-  safeToProcess: boolean;
-  warnings: string[];
-}
-
-/** Rate Limiting - Track and limit request frequencies */
-export interface RateLimitRecord {
-  key: string;
-  count: number;
-  firstRequest: Date;
-  lastRequest: Date;
-}
-
 /** Security headers for API responses */
 export const SecurityHeaders = {
   "X-Content-Type-Options": "nosniff",
@@ -35,152 +8,12 @@ export const SecurityHeaders = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
 };
 
-/** Validate URL for safety */
-export function validateURL(url: string): URLValidationResult {
-  try {
-    const parsed = new URL(url);
-
-    // Block localhost and private IP ranges
-    const hostname = parsed.hostname.toLowerCase();
-
-    // Block localhost
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return { valid: false, reason: "Localhost addresses are not allowed" };
-    }
-
-    // Block private IP ranges (RFC 1918)
-    const privateRanges = [
-      "10.",
-      "172.16.",
-      "172.31.",
-      "192.168.",
-    ];
-
-    for (const range of privateRanges) {
-      if (hostname.startsWith(range)) {
-        return {
-          valid: false,
-          reason: "Private IP addresses are not allowed",
-        };
-      }
-    }
-
-    // Block link-local addresses
-    if (hostname.startsWith("169.254.")) {
-      return {
-        valid: false,
-        reason: "Link-local addresses are not allowed",
-      };
-    }
-
-    // Block loopback IPv6
-    if (hostname === "::1" || hostname.startsWith("fe80:")) {
-      return {
-        valid: false,
-        reason: "Loopback addresses are not allowed",
-      };
-    }
-
-    // Block metadata services
-    if (hostname.includes("metadata.") || hostname == "169.254.169.254") {
-      return {
-        valid: false,
-        reason: "Metadata services are not allowed",
-      };
-    }
-
-    // Allow only HTTP/HTTPS
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return {
-        valid: false,
-        reason: "Only HTTP/HTTPS URLs are allowed",
-      };
-    }
-
-    // Return sanitized URL
-    return {
-      valid: true,
-      sanitizedUrl: `${parsed.protocol}//${parsed.hostname}${parsed.pathname
-        .split("/")
-        .filter((segment) => segment && !segment.startsWith(".."))
-        .join("/")}`,
-    };
-  } catch (error) {
-    return { valid: false, reason: "Invalid URL format" };
-  }
-}
-
-/** Sanitize filename */
-export function sanitizeFilename(filename: string): FileSecurityResult {
-  const warnings: string[] = [];
-  let safeName = filename;
-
-  // Remove path traversal attempts
-  safeName = safeName.replace(/[\/\\]/g, "_");
-  safeName = safeName.replace(/\.\./g, "");
-
-  // Remove dangerous characters
-  safeName = safeName.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
-
-  // Limit filename length
-  const maxNameLength = 255;
-  if (safeName.length > maxNameLength) {
-    const namePart = safeName.slice(0, maxNameLength - 4);
-    const ext = path.extname(safeName);
-    safeName = namePart + ext;
-    warnings.push("Filename truncated to maximum length");
-  }
-
-  // Ensure filename has content
-  if (!safeName || safeName.trim() === "") {
-    safeName = "unknown-file";
-    warnings.push("Filename was invalid, using default");
-  }
-
-  // Ensure file extension is safe
-  const extension = path.extname(safeName).toLowerCase();
-  const safeExtensions = [
-    ".mp4",
-    ".mov",
-    ".mkv",
-    ".webm",
-    ".avi",
-    ".mp3",
-    ".wav",
-    ".jpg",
-    ".png",
-    ".gif",
-  ];
-
-  if (!safeExtensions.includes(extension)) {
-    warnings.push(`File extension "${extension}" may not be processed`);
-  }
-
-  // Check for reserved Windows names
-  const reservedNames = [
-    "con",
-    "prn",
-    "nul",
-    "aux",
-    "com1",
-    "com2",
-    "com3",
-    "lpt1",
-    "lpt2",
-    "lpt3",
-  ];
-  const nameWithoutExt = path.basename(safeName, extension).toLowerCase();
-  if (reservedNames.includes(nameWithoutExt)) {
-    safeName = "video-file" + extension;
-    warnings.push("Filename was a reserved name, using default");
-  }
-
-  return {
-    valid: warnings.length === 0,
-    sanitizedName: safeName,
-    safeToProcess: warnings.length <= 2, // Allow processing with minor warnings
-    warnings,
-  };
+/** Rate limiting - Track and limit request frequencies */
+interface RateLimitRecord {
+  key: string;
+  count: number;
+  firstRequest: Date;
+  lastRequest: Date;
 }
 
 /** Rate limiter using in-memory store (use Redis in production) */
@@ -280,61 +113,11 @@ export class RateLimiter {
   }
 }
 
-/** Pre-configured rate limiters for different operations */
+/** Pre-configured rate limiters for the Instagram endpoints */
 export const rateLimiters = {
-  /** Upload endpoint - stricter limits */
-  upload: new RateLimiter(5, 60000), // 5 uploads per minute,
-
-  /** Conversion endpoint - moderate limits */
-  convert: new RateLimiter(3, 60000), // 3 conversions per minute,
-
-  /** Download endpoint - moderate limits */
-  download: new RateLimiter(10, 60000), // 10 downloads per minute,
-
-  /** Health/status checks - generous limits */
-  health: new RateLimiter(30, 60000), // 30 checks per minute,
-
   /** Instagram analyze - moderate limits */
   instagramAnalyze: new RateLimiter(10, 60000), // 10 analyzes per minute,
 
   /** Instagram download - stricter limits */
   instagramDownload: new RateLimiter(5, 60000), // 5 downloads per minute,
-
-  /** API general - standard limits */
-  general: new RateLimiter(20, 60000), // 20 requests per minute,
 };
-
-/** File size limits */
-export const MAX_FILE_SIZE = {
-  upload: 1 * 1024 * 1024 * 1024, // 1GB
-  conversion: 500 * 1024 * 1024, // 500MB
-  download: Infinity,
-};
-
-/** Allowed file types */
-export const ALLOWED_FILE_TYPES = [
-  "video/mp4",
-  "video/mpeg",
-  "video/quicktime",
-  "video/x-mkv",
-  "video/webm",
-  "video/x-msvideo",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/x-wav",
-];
-
-/** Allowed video codecs (for FFmpeg) */
-export const ALLOWED_CODECS = new Set([
-  "h264",
-  "hevc",
-  "mpeg4",
-  "vp8",
-  "vp9",
-  "av1",
-  "aac",
-  "mp3",
-  "mp2",
-  "ac3",
-  "eac3",
-]);
