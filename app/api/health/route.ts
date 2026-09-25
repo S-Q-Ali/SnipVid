@@ -1,60 +1,76 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
-import os from "os";
-import path from "path";
 
-import { FfmpegService, ffmpegCheck, ffprobeCheck } from "@/lib/ffmpeg/service";
+import { TEMP_ROOT, spawnYtDlp } from "@/lib/instagram/service";
 
 export const runtime = "nodejs";
 
+const YTDLP_TIMEOUT_MS = 3000;
+
+type Check = {
+  status: "available" | "unavailable" | "error";
+  detail: string;
+  version?: string;
+};
+
+function checkYtDlp(): Promise<Check> {
+  return new Promise((resolve) => {
+    let version = "";
+    const child = spawnYtDlp(["--version"]);
+
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ status: "unavailable", detail: "yt-dlp did not respond in time" });
+    }, YTDLP_TIMEOUT_MS);
+
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      version += chunk.toString();
+    });
+
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve({ status: "unavailable", detail: "yt-dlp binary not found" });
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const reported = version.trim();
+      if (code === 0 && reported) {
+        resolve({ status: "available", detail: "yt-dlp is installed", version: reported });
+        return;
+      }
+      resolve({ status: "unavailable", detail: "yt-dlp --version did not succeed" });
+    });
+  });
+}
+
+function checkStorage(): Check {
+  try {
+    if (!fs.existsSync(TEMP_ROOT)) {
+      fs.mkdirSync(TEMP_ROOT, { recursive: true });
+    }
+    fs.accessSync(TEMP_ROOT, fs.constants.W_OK);
+    return { status: "available", detail: "Temporary storage is writable" };
+  } catch {
+    return { status: "error", detail: "Cannot access temporary storage" };
+  }
+}
+
+/**
+ * GET /api/health
+ * Reports whether the downloader can actually run: the yt-dlp binary and
+ * the temporary output directory are both required, so both are surfaced here.
+ */
 export async function GET() {
-  const checks: Record<string, { status: string; detail?: string }> = {
-    ffmpeg: { status: "unknown" },
-    ffprobe: { status: "unknown" },
-    storage: { status: "unknown" },
-    system: { status: "unknown" },
+  const checks: { ytdlp: Check; storage: Check } = {
+    ytdlp: await checkYtDlp(),
+    storage: checkStorage(),
   };
 
-  // Check FFmpeg
-  const hasFfmpeg = await ffmpegCheck();
-  checks.ffmpeg = hasFfmpeg
-    ? { status: "available", detail: "FFmpeg binary found" }
-    : { status: "unavailable", detail: "FFmpeg not found" };
-
-  // Check FFprobe
-  const hasFfprobe = await ffprobeCheck();
-  checks.ffprobe = hasFfprobe
-    ? { status: "available", detail: "FFprobe binary found" }
-    : { status: "unavailable", detail: "FFprobe not found" };
-
-  // Check storage
-  try {
-    const tempDir = path.join(os.tmpdir(), "videotoolkit", "temp");
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    checks.storage = { status: "available" };
-  } catch {
-    checks.storage = { status: "error", detail: "Cannot access temporary storage" };
-  }
-
-  // System check
-  try {
-    await FfmpegService.ensureDirectories();
-    checks.system = { status: "ok", detail: "FFmpeg service initialized" };
-  } catch (error) {
-    checks.system = {
-      status: "error",
-      detail: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-
-  const allOk = Object.values(checks).every(
-    (check) => check.status !== "unavailable" && check.status !== "error"
-  );
+  const degraded = Object.values(checks).some((check) => check.status !== "available");
 
   return NextResponse.json({
-    status: allOk ? "ok" : "degraded",
+    status: degraded ? "degraded" : "ok",
     timestamp: new Date().toISOString(),
     checks,
   });
