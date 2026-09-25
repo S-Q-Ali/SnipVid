@@ -1,22 +1,22 @@
 # SnipVid — Instagram Downloader Pivot — Task List
 
 ## Phase 0: Foundation
-- [ ] T0: CONSTRAINTS.md + `.env.example` boundary config
-- [ ] T1: `lib/instagram/` module (url / types / service) via TDD
-- [ ] T2: `/api/instagram/{analyze,download,jobs/[id]}` routes via TDD
+- [x] T0: CONSTRAINTS.md + `.env.example` boundary config
+- [x] T1: `lib/instagram/` module (url / types / service) via TDD
+- [x] T2: `/api/instagram/{analyze,download,jobs/[id]}` routes via TDD
 
 ## Checkpoint A
-- [ ] Tests + build green
-- [ ] curl end-to-end: public reel downloads
-- [ ] Human review
+- [x] Tests + build green
+- [x] curl end-to-end: public reel downloads
+- [x] Human review
 
 ## Phase 1: v1 UI (posts / reels / photos)
-- [ ] T3: Homepage rewrite (`app/page.tsx`) — SnipVid IG downloader
-- [ ] T4: Carousel/photo posts — per-item download
+- [x] T3: Homepage rewrite (`app/page.tsx`) — SnipVid IG downloader
+- [x] T4: Carousel/photo posts — per-item download (`itemIndex` -> `--playlist-items`, per-item filename suffix, "Download all" button)
 
 ## Checkpoint B
-- [ ] Browser end-to-end v1
-- [ ] Coverage >= 80% changed lines
+- [x] Browser end-to-end v1 (reel live 13/13; carousel UI 14/14 with intercepted analyze; live carousel leg still unverified)
+- [x] Coverage >= 80% changed lines (89.96%)
 - [ ] Human review
 
 ## Phase 2: v2 (stories + highlights)
