@@ -1,98 +1,79 @@
-import { CheckCircle, Image, Mouse, FolderInput, Zap, Lupe, Scale, Crop, Scissors, AlignCenter, FormatAudio, Repeat, Video, Settings, Trash, Calendar, Loader2, Folder, Globe, Music, Layout, LucideIcon } from "lucide-react";
+import { Award, FolderDown, Image as ImageIcon, PlayCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { Header } from "@/components/header/header";
+import { Footer } from "@/components/footer/footer";
+import { InstagramDownloaderForm } from "@/components/instagram/downloader-form";
 
-export interface Tool {
-  id: string;
-  title: string;
-  description: string;
-  href: string;
-  icon: LucideIcon;
-  color: string;
-}
-
-export const tools: Tool[] = [
+const FEATURES = [
   {
-    id: "downloader",
-    title: "Video Downloader",
-    description: "Download videos from supported platforms",
-    href: "/video-downloader",
-    icon: Folder,
-    color: "bg-blue-500/20 text-blue-400",
+    title: "Posts & Photos",
+    description: "Save any public post or photo, including carousels with all their items.",
+    icon: ImageIcon,
   },
   {
-    id: "converter",
-    title: "Video Converter",
-    description: "Convert videos between formats",
-    href: "/video-converter",
-    icon: Zap,
-    color: "bg-purple-500/20 text-purple-400",
+    title: "Reels & Videos",
+    description: "Download reels and video posts in original quality, anonymous and free.",
+    icon: PlayCircle,
   },
   {
-    id: "mp4",
-    title: "To MP4",
-    description: "Convert any video to MP4",
-    href: "/video-to-mp4",
-    icon: Scale,
-    color: "bg-green-500/20 text-green-400",
+    title: "Stories & Highlights",
+    description: "Grab stories and story highlights before they disappear.",
+    icon: Sparkles,
   },
   {
-    id: "mpeg4",
-    title: "MPEG-4 to MP4",
-    description: "Convert MPEG-4 files to MP4",
-    href: "/mpeg-4-to-mp4",
-    icon: Crop,
-    color: "bg-orange-500/20 text-orange-400",
-  },
-  {
-    id: "compressor",
-    title: "Video Compressor",
-    description: "Compress videos easily",
-    icon: Scissors,
-    color: "bg-red-500/20 text-red-400",
-  },
-  {
-    id: "resizer",
-    title: "Video Resizer",
-    description: "Resize videos for social media",
-    icon: Layout,
-    color: "bg-yellow-500/20 text-yellow-400",
+    title: "100% Anonymous",
+    description: "No login, no account, no cookies. Public content downloads instantly.",
+    icon: ShieldCheck,
   },
 ];
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tighter text-foreground mb-4">
-            Your Complete Video Toolkit
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Download, convert, compress, resize and process videos from one place. Powerful FFmpeg-based processing with real progress tracking.
-          </p>
-        </div>
+    <div className="flex min-h-screen flex-col bg-background">
+      <Header />
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {tools.map((tool) => (
-            <div
-              key={tool.id}
-              className={`group rounded-xl p-6 text-left transition-all duration-300 hover:shadow-lg ${tool.color}`}
-            >
-              <tool className="h-12 w-12 mx-auto mb-4 group-hover:opacity-100" />
-              <h3 className="text-xl font-medium mb-2">{tool.title}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-2">{tool.description}</p>
-            </div>
-          ))}
-        </div>
+      <main className="flex-1">
+        <section className="mx-auto w-full max-w-4xl px-4 py-16 sm:px-6">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              New · Instagram Downloader
+            </span>
+            <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
+              Download Instagram Posts, Reels &amp; Photos
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
+              Paste a link to any public Instagram post, reel, story, highlight, or profile —
+              and save the media instantly. No login required.
+            </p>
+          </div>
 
-        <div className="mt-12 pt-12 border-t border-border flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Supported formats and platforms{" "}
-            <a href="/video-downloader" className="font-medium underline underline-offset-2 hover:text-primary">
-              Learn more
-            </a>.
-          </p>
-        </div>
-      </div>
-    </main>
+          <div className="mt-10">
+            <InstagramDownloaderForm />
+          </div>
+
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((feature) => (
+              <div
+                key={feature.title}
+                className="rounded-xl border border-border bg-card p-6"
+              >
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <feature.icon className="h-5 w-5 text-primary" />
+                </div>
+                <h2 className="text-base font-semibold">{feature.title}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <FolderDown className="h-4 w-4" />
+            Anonymous downloader — we never ask for your Instagram login.
+          </div>
+        </section>
+      </main>
+
+      <Footer />
+    </div>
   );
 }
