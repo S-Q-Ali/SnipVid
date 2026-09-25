@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-import { rateLimiters } from "@/lib/security/service";
 import { TEMP_ROOT } from "@/lib/instagram/service";
 
 export const runtime = "nodejs";

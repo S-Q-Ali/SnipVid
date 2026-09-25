@@ -1,4 +1,4 @@
-import { Award, FolderDown, Image as ImageIcon, PlayCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { FolderDown, Image as ImageIcon, PlayCircle, ShieldCheck, Sparkles } from "lucide-react";
 import { Header } from "@/components/header/header";
 import { Footer } from "@/components/footer/footer";
 import { InstagramDownloaderForm } from "@/components/instagram/downloader-form";

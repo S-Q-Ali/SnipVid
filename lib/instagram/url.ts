@@ -46,12 +46,12 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
   try {
     parsed = new URL(input);
   } catch {
-    return unsupported(input);
+    return unsupported();
   }
 
   const host = parsed.hostname.toLowerCase();
   if (!ALLOWED_HOSTS.has(host)) {
-    return unsupported(input);
+    return unsupported();
   }
 
   const segments = parsed.pathname
@@ -60,7 +60,7 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
     .map((segment) => decodeURIComponent(segment));
 
   if (segments.length === 0) {
-    return unsupported(input);
+    return unsupported();
   }
 
   const first = segments[0];
@@ -88,7 +88,7 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
   }
 
   if (RESERVED_PATHS.has(first)) {
-    return unsupported(input);
+    return unsupported();
   }
 
   return {
@@ -130,6 +130,6 @@ function mediaPath(mediaType: InstagramMediaType, shortcode: string): string {
   }
 }
 
-function unsupported(input: string): InstagramUrlInfo {
+function unsupported(): InstagramUrlInfo {
   return { kind: "unsupported", canonicalUrl: "" };
 }

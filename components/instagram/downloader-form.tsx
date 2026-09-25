@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   AlertCircle,
-  CheckCircle2,
   Download,
   Image as ImageIcon,
   Link2,
@@ -219,6 +218,13 @@ export function InstagramDownloaderForm() {
         <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{analyzeError}</span>
+        </p>
+      )}
+
+      {downloadError && (
+        <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{downloadError}</span>
         </p>
       )}
 
