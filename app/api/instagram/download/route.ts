@@ -34,6 +34,23 @@ export async function POST(request: Request) {
     return jsonResponse({ error: "A URL is required." }, 400);
   }
 
+  const rawItemIndex =
+    typeof raw === "object" && raw !== null
+      ? (raw as { itemIndex?: unknown }).itemIndex
+      : undefined;
+  let itemIndex: number | undefined;
+  if (rawItemIndex !== undefined && rawItemIndex !== null) {
+    if (
+      typeof rawItemIndex !== "number" ||
+      !Number.isInteger(rawItemIndex) ||
+      rawItemIndex < 1 ||
+      rawItemIndex > 50
+    ) {
+      return jsonResponse({ error: "Invalid item index." }, 400);
+    }
+    itemIndex = rawItemIndex;
+  }
+
   const info = classifyInstagramUrl(url);
   if (info.kind === "unsupported") {
     return jsonResponse(
@@ -42,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const job = createDownloadJob(url, info);
+  const job = createDownloadJob(url, info, itemIndex);
   void startDownloadJob(job);
 
   return jsonResponse({ jobId: job.id, status: job.status }, 202);

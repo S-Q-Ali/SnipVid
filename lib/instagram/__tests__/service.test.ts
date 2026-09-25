@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -8,6 +8,8 @@ import {
   parseMetadata,
   sanitizeFilename,
   finalizeDownloadedFiles,
+  getYtDlpPath,
+  createDownloadJob,
 } from "../service";
 import type { InstagramUrlInfo } from "../url";
 
@@ -96,6 +98,21 @@ describe("finalizeDownloadedFiles", () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("ignores entries that are neither files nor directories", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-weird-"));
+    const spy = vi
+      .spyOn(fs, "readdirSync")
+      .mockReturnValueOnce([
+        { name: "socket", isDirectory: () => false, isFile: () => false },
+      ] as unknown as ReturnType<typeof fs.readdirSync>);
+    try {
+      expect(finalizeDownloadedFiles(dir)).toEqual([]);
+    } finally {
+      spy.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("parseMetadata", () => {
@@ -145,5 +162,71 @@ describe("parseMetadata", () => {
     expect(result.uploader).toBe("jane.doe");
     expect(result.duration).toBe(43);
     expect(result.thumbnail).toBe("http://thumb/1.jpg");
+  });
+
+  it("falls back to a generic title and the first entry thumbnail", () => {
+    const result = parseMetadata(
+      {
+        entries: [
+          { id: "a1", thumbnail: "http://thumb/first.jpg", url: "http://x/1.mp4" },
+          { id: "a2", url: "http://x/2.jpg" },
+        ],
+      },
+      postInfo
+    );
+    expect(result.title).toBe("Instagram media");
+    expect(result.thumbnail).toBe("http://thumb/first.jpg");
+    expect(result.media[0].title).toBe("Instagram media");
+    expect(result.media[1].kind).toBe("image");
+  });
+
+  it("treats an audio-only entry as video", () => {
+    const result = parseMetadata(
+      { entries: [{ id: "a1", vcodec: "none", acodec: "mp4a", url: "http://x/1.m4a" }] },
+      postInfo
+    );
+    expect(result.media[0].kind).toBe("video");
+  });
+});
+
+describe("getYtDlpPath", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("prefers YTDLP_PATH and falls back to the system binary", () => {
+    vi.stubEnv("YTDLP_PATH", "C:/tools/yt-dlp.exe");
+    expect(getYtDlpPath()).toBe("C:/tools/yt-dlp.exe");
+    vi.stubEnv("YTDLP_PATH", "");
+    expect(getYtDlpPath()).toBe("yt-dlp");
+  });
+});
+
+describe("createDownloadJob", () => {
+  it("defaults to the post media type and a pending state", () => {
+    const job = createDownloadJob("https://www.instagram.com/p/CxYz123AbcD/", {
+      kind: "post",
+      shortcode: "CxYz123AbcD",
+      canonicalUrl: "https://www.instagram.com/p/CxYz123AbcD/",
+    });
+    expect(job.mediaType).toBe("post");
+    expect(job.status).toBe("pending");
+    expect(job.progress).toBe(0);
+    expect(job.files).toEqual([]);
+    expect(job.createdAt).toBeGreaterThan(0);
+    expect(job.itemIndex).toBeUndefined();
+  });
+
+  it("records a requested carousel item index", () => {
+    const job = createDownloadJob(
+      "https://www.instagram.com/p/CxYz123AbcD/",
+      {
+        kind: "post",
+        shortcode: "CxYz123AbcD",
+        canonicalUrl: "https://www.instagram.com/p/CxYz123AbcD/",
+      },
+      4
+    );
+    expect(job.itemIndex).toBe(4);
   });
 });

@@ -29,6 +29,7 @@ export interface DownloadJob {
   status: DownloadJobStatus;
   progress: number;
   files: string[];
+  itemIndex?: number;
   error?: string;
   createdAt: number;
 }

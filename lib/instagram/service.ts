@@ -148,7 +148,11 @@ export function getDownloadJob(id: string): DownloadJob | undefined {
   return jobs.get(id);
 }
 
-export function createDownloadJob(input: string, urlInfo: InstagramUrlInfo): DownloadJob {
+export function createDownloadJob(
+  input: string,
+  urlInfo: InstagramUrlInfo,
+  itemIndex?: number
+): DownloadJob {
   const job: DownloadJob = {
     id: randomUUID(),
     url: input,
@@ -156,13 +160,20 @@ export function createDownloadJob(input: string, urlInfo: InstagramUrlInfo): Dow
     status: "pending",
     progress: 0,
     files: [],
+    itemIndex,
     createdAt: Date.now(),
   };
   jobs.set(job.id, job);
   return job;
 }
 
-const OUTPUT_TEMPLATE = "%(title).80s [%(id)s].%(ext)s";
+const OUTPUT_TEMPLATE = "%(title).80s [%(id)s]";
+
+function outputTemplateFor(dir: string, itemIndex?: number): string {
+  const suffix = itemIndex === undefined ? "" : `-${itemIndex}`;
+  const forwardDir = dir.replace(/\\/g, "/");
+  return `${forwardDir}/${OUTPUT_TEMPLATE}${suffix}.%(ext)s`;
+}
 
 export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
   const dir = jobDir(job.id);
@@ -170,15 +181,18 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
   job.status = "processing";
   job.progress = 0;
 
-  const outputTemplate = `${dir.replace(/\\/g, "/")}/${OUTPUT_TEMPLATE}`;
-  const proc = spawnYtDlp([
+  const args = [
     "-o",
-    outputTemplate,
+    outputTemplateFor(dir, job.itemIndex),
     "--newline",
     "--no-warnings",
     "--no-colors",
-    job.url,
-  ]);
+  ];
+  if (job.itemIndex !== undefined) {
+    args.push("--playlist-items", String(job.itemIndex));
+  }
+  args.push(job.url);
+  const proc = spawnYtDlp(args);
 
   return new Promise((resolve) => {
     if (!proc.stderr || !proc.stdout) {
@@ -248,8 +262,9 @@ function listFiles(dir: string, prefix: string = ""): string[] {
 
 export function downloadInstagramUrl(
   input: string,
-  urlInfo: InstagramUrlInfo
+  urlInfo: InstagramUrlInfo,
+  itemIndex?: number
 ): Promise<DownloadJob> {
-  const job = createDownloadJob(input, urlInfo);
+  const job = createDownloadJob(input, urlInfo, itemIndex);
   return startDownloadJob(job);
 }

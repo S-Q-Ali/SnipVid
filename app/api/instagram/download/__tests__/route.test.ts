@@ -49,6 +49,39 @@ describe("POST /api/instagram/download", () => {
     expect(startDownloadJob).toHaveBeenCalledTimes(1);
   });
 
+  it("passes a validated carousel item index through to the job", async () => {
+    vi.mocked(createDownloadJob).mockImplementation((input, info, itemIndex) => ({
+      id: "job-item",
+      url: input,
+      mediaType: info.mediaType || "post",
+      status: "pending",
+      progress: 0,
+      files: [],
+      itemIndex,
+      createdAt: Date.now(),
+    }));
+    vi.mocked(startDownloadJob).mockImplementation(async (job) => ({ ...job, status: "processing" }));
+
+    const res = await POST(
+      post({ url: "https://www.instagram.com/p/CxYz123AbcD/", itemIndex: 3 }, "10.0.3.9")
+    );
+    expect(res.status).toBe(202);
+    expect(vi.mocked(createDownloadJob).mock.calls[0][2]).toBe(3);
+  });
+
+  it.each([
+    [0, "10.0.3.1"],
+    [-1, "10.0.3.2"],
+    [1.5, "10.0.3.3"],
+    ["2", "10.0.3.4"],
+    [51, "10.0.3.5"],
+    [true, "10.0.3.6"],
+  ])("rejects an invalid item index (%s)", async (itemIndex, ip) => {
+    const res = await POST(post({ url: "https://www.instagram.com/p/CxYz123AbcD/", itemIndex }, ip));
+    expect(res.status).toBe(400);
+    expect(createDownloadJob).not.toHaveBeenCalled();
+  });
+
   it("rejects non-Instagram URLs", async () => {
     const res = await POST(post({ url: "https://www.tiktok.com/@x/video/1" }));
     expect(res.status).toBe(400);

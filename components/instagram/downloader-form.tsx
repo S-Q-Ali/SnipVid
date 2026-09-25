@@ -85,6 +85,7 @@ export function InstagramDownloaderForm() {
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [startingIndex, setStartingIndex] = useState<number | "all" | null>(null);
   const [downloadError, setDownloadError] = useState("");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -133,19 +134,21 @@ export function InstagramDownloaderForm() {
   );
 
   const handleDownload = useCallback(
-    async (e?: FormEvent) => {
-      e?.preventDefault();
+    async (itemIndex?: number) => {
       const trimmed = url.trim();
       if (!trimmed) return;
       stopPolling();
       setDownloading(true);
+      setStartingIndex(itemIndex ?? "all");
       setDownloadError("");
       setJob(null);
       try {
         const res = await fetch("/api/instagram/download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmed }),
+          body: JSON.stringify(
+            itemIndex === undefined ? { url: trimmed } : { url: trimmed, itemIndex }
+          ),
         });
         const body = await res.json();
         if (!res.ok) {
@@ -172,6 +175,7 @@ export function InstagramDownloaderForm() {
         setDownloadError("Could not start the download. Please try again.");
       } finally {
         setDownloading(false);
+        setStartingIndex(null);
       }
     },
     [url, stopPolling]
@@ -258,19 +262,44 @@ export function InstagramDownloaderForm() {
 
           <div className="mt-5 flex flex-wrap gap-2">
             {result.isCarousel && result.media.length > 1 ? (
-              result.media.map((item) => (
+              <>
+                {result.media.map((item, position) => {
+                  const number = item.index ?? position + 1;
+                  const busy = downloading && startingIndex === number;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleDownload(number)}
+                      disabled={running}
+                      className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:border-primary/40 disabled:opacity-50"
+                    >
+                      {busy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : item.kind === "image" ? (
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      ) : (
+                        <PlayCircle className="h-3.5 w-3.5" />
+                      )}
+                      {item.kind === "image" ? "Photo" : "Video"} {number}
+                      {!busy && <Download className="h-3.5 w-3.5" />}
+                    </button>
+                  );
+                })}
                 <button
-                  key={item.id}
                   onClick={() => handleDownload()}
                   disabled={running}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:border-primary/40 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {item.kind === "image" ? <ImageIcon className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
-                  {item.kind === "image" ? "Photo" : "Video"}
-                  {item.index ? ` ${item.index}` : ""}
-                  <Download className="h-3.5 w-3.5" />
+                  {downloading && startingIndex === "all" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {downloading && startingIndex === "all"
+                    ? "Starting…"
+                    : `Download all ${result.media.length} items`}
                 </button>
-              ))
+              </>
             ) : (
               <button
                 onClick={() => handleDownload()}
