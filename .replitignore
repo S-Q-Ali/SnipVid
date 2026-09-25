@@ -3,3 +3,10 @@
 
 # No need to store the pnpm store twice.
 .local
+
+# Build output and runtime state must never ride into the deploy image.
+.next
+storage
+
+# Agent tooling.
+.opencode
