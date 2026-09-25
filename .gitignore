@@ -5,11 +5,31 @@ dist
 tmp
 out-tsc
 *.tsbuildinfo
-.expo
-.expo-shared
 
 # dependencies
 node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# local env (keep .env.example)
+.env
+.env.local
+.env*.local
+
+# runtime state: downloaded Instagram media lives here
+/storage/
+
+# agent tooling
+/.opencode/
+
+# pnpm is the package manager; an npm lockfile would fight it
+/package-lock.json
+
+# legacy agent state from the video-toolkit era
+/session_state.txt
 
 # IDEs and editors
 /.idea
