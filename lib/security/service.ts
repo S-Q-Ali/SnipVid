@@ -87,30 +87,6 @@ export class RateLimiter {
       resetTime: new Date(record.firstRequest.getTime() + this.timeWindow),
     };
   }
-
-  /** Get rate limit info */
-  getInfo(key: string): {
-    limit: number;
-    remaining: number;
-    reset: Date;
-    used: number;
-  } {
-    const record = this.limits.get(key);
-    if (record) {
-      return {
-        limit: this.maxRequests,
-        remaining: Math.max(0, this.maxRequests - record.count),
-        reset: new Date(record.firstRequest.getTime() + this.timeWindow),
-        used: record.count,
-      };
-    }
-    return {
-      limit: this.maxRequests,
-      remaining: this.maxRequests,
-      reset: new Date(),
-      used: 0,
-    };
-  }
 }
 
 /** Pre-configured rate limiters for the Instagram endpoints */
