@@ -76,13 +76,7 @@ v1 = posts/reels/photos, v2 = stories/highlights, v3 = profile bulk. Anonymous-o
 - [ ] **T7. Profile bulk** — `--flat-playlist` count, batch queue, N<=20 cap, DoS-safe pacing.
   - Files: `lib/instagram/service.ts`, `app/page.tsx`, tests.
 
-- [ ] **T8. Retire video toolkit (ASK-FIRST, destructive)** — **exact list:**
-  - Pages (16): `app/{video-converter, video-to-mp4, mpeg-4-to-mp4, mov-to-mp4, mkv-to-mp4, webm-to-mp4, avi-to-mp4, video-to-mp3, video-compressor, video-resizer, video-trimmer, video-cropper, video-to-gif, rotate-video, social-video-converter, video-downloader}/`
-  - APIs: `app/api/upload/route.ts`, `app/api/convert/route.ts` (keep `download/`, `health/`)
-  - lib: `lib/ffmpeg/`, `lib/downloader/` (→ `lib/instagram/`), `lib/seo/tool-seo.ts`, `lib/jobs/queue.ts` (keep if reused by IG)
-  - Components: `components/converter/*`, `components/upload/`, `components/jobs/` (keep `header/`, `footer/`)
-  - Inspect then decide: `scripts/` (hello.ts demo), `validation/`, `lib/security` dead exports; `artifacts/` untouched.
-  - Safety: git tag `pre-pivot-retire` created first; confirm delete list with human before executing.
+- [x] **T8. Retire video toolkit (ASK-FIRST, destructive)** — executed. Delete list confirmed in-session, `pre-pivot-retire` tag created on the pre-deletion snapshot, then removed: the 16 pages above, `app/api/upload/`, `app/api/convert/`, `lib/ffmpeg/`, `lib/downloader/`, `lib/seo/`, `lib/jobs/`, `components/{converter,upload,jobs}/`, plus the 9 SEO pages and the dead `format-selector`. Went beyond the planned list, also approved in-session: the untouched Replit workspace (`lib/db`, `lib/api-zod`, `lib/api-client-react`, `lib/api-spec`, `artifacts/api-server`, `artifacts/mockup-sandbox`, `scripts/`) and the dead deps `uuid`, `jest`, `@replit/connectors-sdk`. Kept: `header/`, `footer/` (rewritten for SnipVid), `health/` (rewritten to report yt-dlp), `download/`, `lib/security` (trimmed to the symbols IG uses).
 
 - [ ] **T9. Polish + SEO + full regression** — brand meta/structured data, `robots.ts`, `sitemap.ts` prune; final `npm run build`/`test`/`typecheck`/`lint`; console clean.
 

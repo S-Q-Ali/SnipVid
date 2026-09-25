@@ -28,13 +28,13 @@
 
 ## Phase 3: v3 (profile bulk + retire)
 - [ ] T7: Profile bulk download (N<=20)
-- [ ] T8: Retire video toolkit (ASK-FIRST; `pre-pivot-retire` tag; confirm delete list)
-- [ ] T9: Polish + SEO + full regression
+- [x] T8: Retire video toolkit (ASK-FIRST; `pre-pivot-retire` tag; confirm delete list) — done, went beyond the plan list with session approval
+- [ ] T9: Polish + SEO + full regression (robots/sitemap already pruned)
 
 ## Follow-ups (tracked, not blocking)
-- [ ] T8: drop the 3 `eslint.config.mjs` ignores and widen `lint` to `eslint app components lib` once the toolkit is deleted
+- [ ] T9: temp-file retention — nothing ever cleans `storage/temp/<jobId>/`, so disk grows without bound (38MB after one test session)
 - [ ] T9: replace the `<img>` thumbnail with `next/image` after measuring the real Instagram CDN hosts for `remotePatterns`
-- [ ] Audit decisions: dev `vitest@2.1.9` critical (GHSA-5xrq-8626-4rwp, fixed in 3.2.6 -> major bump), dev highs (`fast-uri`, `js-yaml`, `brace-expansion`, `vite@5.4.21`), prod moderates (`uuid@10.0.0` -> 11.1.1, `qs@6.15.3` x2 -> 6.16.0)
+- [ ] Audit decisions: dev `vitest@2.1.9` critical (GHSA-5xrq-8626-4rwp, fixed in 3.2.6 -> major bump), dev highs (`fast-uri`, `js-yaml`, `brace-expansion`, `vite@5.4.21`), prod moderate `qs@6.15.3` x2 (patched in 6.16.0)
 
 ## Checkpoint D
 - [ ] Instagram-only app, no dead code, all gates green
