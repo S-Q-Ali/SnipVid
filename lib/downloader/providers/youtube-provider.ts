@@ -1,4 +1,4 @@
-import { DownloaderProvider, DownloaderJob } from "./service";
+import { DownloaderProvider } from "../service";
 
 export const youtubeProvider: DownloaderProvider = {
   name: "YouTube",
@@ -23,32 +23,12 @@ export const youtubeProvider: DownloaderProvider = {
     }>;
     error?: string;
   }> {
-    // YouTube API would go here - for now return placeholder data
-    // In production, this would use the YouTube Data API or a licensed downloader
+    // YouTube downloading requires a licensed downloader library or the
+    // official YouTube Data API. This is not implemented in this environment.
     return {
-      title: "Sample YouTube Video",
-      duration: 300,
-      formats: [
-        {
-          quality: "1080p",
-          url: "",
-          codec: "h264",
-          container: "mp4",
-        },
-        {
-          quality: "720p",
-          url: "",
-          codec: "h264",
-          container: "mp4",
-        },
-        {
-          quality: "480p",
-          url: "",
-          codec: "h264",
-          container: "mp4",
-        },
-      ],
-      error: undefined,
+      title: "YouTube Video",
+      error:
+        "YouTube downloading is not currently supported. This requires a licensed downloader library or the official YouTube Data API.",
     };
   },
 
@@ -58,25 +38,16 @@ export const youtubeProvider: DownloaderProvider = {
     title: string;
     error?: string;
   }> {
-    // YouTube download would go here
-    // In production, this would use a licensed YouTube downloader library
-    // For now, return a placeholder indicating the download would happen
     return {
       success: false,
       filepath: "",
       title: "YouTube Video",
-      error: "YouTube download not implemented in this environment. " +
-        "Use a licensed downloader library or external service.",
+      error:
+        "YouTube downloading is not currently supported. This requires a licensed downloader library or the official YouTube Data API.",
     };
   },
 };
 
-// Register the YouTube provider
-DownloaderService.registerProvider(youtubeProvider);
-
-/** Other platform providers (placeholders for future implementation) */
-
 export const providers = {
   youtube: youtubeProvider,
-  // Instagram, Facebook, TikTok, Twitter, Reddit, Vimeo, Pinterest would be added here
 };

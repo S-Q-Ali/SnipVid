@@ -12,5 +12,37 @@
     {
       "path": "./lib/api-zod"
     }
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "artifacts",
+    "scripts",
+    "lib/db",
+    "lib/api-client-react",
+    "lib/api-zod",
+    "lib/api-spec"
   ]
 }

@@ -1,5 +1,3 @@
-import { FfmpegService } from "@/lib/ffmpeg/service";
-
 export interface JobStatus {
   id: string;
   filename: string;
@@ -24,7 +22,7 @@ export interface JobQueue {
 }
 
 export class SimpleJobQueue implements JobQueue {
-  private jobs: Map<string, JobStatus> = new Map();
+  jobs: Map<string, JobStatus> = new Map();
 
   addJob(filename: string): string {
     const jobId = uuidv4();

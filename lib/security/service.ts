@@ -1,5 +1,3 @@
-import { DLP } from "dlp";
-
 import path from "path";
 import os from "os";
 import fs from "fs";
@@ -295,6 +293,12 @@ export const rateLimiters = {
 
   /** Health/status checks - generous limits */
   health: new RateLimiter(30, 60000), // 30 checks per minute,
+
+  /** Instagram analyze - moderate limits */
+  instagramAnalyze: new RateLimiter(10, 60000), // 10 analyzes per minute,
+
+  /** Instagram download - stricter limits */
+  instagramDownload: new RateLimiter(5, 60000), // 5 downloads per minute,
 
   /** API general - standard limits */
   general: new RateLimiter(20, 60000), // 20 requests per minute,

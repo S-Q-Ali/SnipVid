@@ -1,4 +1,4 @@
-import { FolderUpload, RefreshCcw, Loader2, X } from "lucide-react";
+import { FolderUp, X } from "lucide-react";
 import * as React from "react";
 
 export interface UploadZoneProps {
@@ -17,29 +17,42 @@ export function UploadZone({
   className,
 }: UploadZoneProps) {
   const [files, setFiles] = React.useState<FileList | null>(null);
+  const inputId = React.useMemo(() => `upload-input-${Date.now()}`, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
-    if (selectedFiles && onFilesSelected) {
-      onFilesSelected(selectedFiles);
+    if (selectedFiles) {
+      setFiles(selectedFiles);
+      if (onFilesSelected) {
+        onFilesSelected(selectedFiles);
+      }
+    }
+  };
+
+  const handleClear = () => {
+    setFiles(null);
+    if (onRemove) {
+      onRemove();
     }
   };
 
   return (
-    <div className={`border-2 border-border rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${className || ""}`} onClick={() => document.getElementById("upload-input-${Date.now()})?.click()">
+    <div
+      className={`border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer transition-all duration-300 hover:border-primary/50 ${className || ""}`}
+      onClick={() => document.getElementById(inputId)?.click()}
+    >
       <input
-        id={`upload-input-${Date.now()}`
+        id={inputId}
         type="file"
         style={{ display: "none" }}
         accept={acceptedFiles}
         multiple={multiple}
         onChange={handleChange}
+        aria-label="Upload file"
       />
       <div className="relative z-10">
-        <FolderUpload
-          className={["h-12 w-12 mx-auto mb-3", "text-muted-foreground"].join(" ")}
-        />
-        <p className="text-sm text-muted-foreground mb-2">
+        <FolderUp className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground mb-2 font-medium">
           Click or drag files here
         </p>
         <p className="text-xs text-muted-foreground">
@@ -47,29 +60,32 @@ export function UploadZone({
         </p>
         {files && files.length > 0 && (
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {[...files].slice(0, 3).map((file, index) => (
+            {Array.from(files).slice(0, 5).map((file, index) => (
               <div
                 key={index}
-                className={`px-3 py-1 rounded text-xs ${files.length > 3 ? "line-clamp-2" : ""} bg-muted/30 text-muted-foreground`}
+                className="px-3 py-1 rounded text-xs bg-muted/30 text-muted-foreground flex items-center gap-1"
               >
-                {file.name.split(".").slice(0, -1).join(".")}
-                {files.length > 3 && (
-                  <span className="text-caption">
-                    +{files.length - 3} more
-                  </span>
-                )}
+                <span className="max-w-[120px] truncate">{file.name}</span>
+                <span className="text-caption opacity-70">
+                  ({(file.size / 1024 / 1024).toFixed(1)} MB)
+                </span>
               </div>
             ))}
-            {files.length > 3 && (
-              <X className="h-4 w-4 text-error" aria-label="Remove all files" />
+            {files.length > 5 && (
+              <span className="px-3 py-1 rounded text-xs bg-muted/30 text-muted-foreground">
+                +{files.length - 5} more
+              </span>
             )}
           </div>
         )}
-        {onRemove && (
+        {files && files.length > 0 && onRemove && (
           <button
             type="button"
-            className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80"
-            onClick={onRemove}
+            className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClear();
+            }}
             aria-label="Remove all files"
           >
             <X className="h-4 w-4" />

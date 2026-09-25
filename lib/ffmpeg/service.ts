@@ -1,13 +1,11 @@
-import { execFile } from "child_process";
-import { ffprobe as ffprobePath, ffmpeg as ffmpegPath } from "@ffmpeg-installer/lib/ffmpeg";
-import { ffprobe as ffprobePath2 } from "@ffmpeg-installer/lib/ffprobe";
-
+import { execFile, spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 import os from "os";
-import { v4 as uuidv4 } from "uuid";
 
 const TEMP_DIR = path.join(os.tmpdir(), "videotoolkit", "temp");
-const MAX_JOB_RETENTION_SECONDS = 24 * 60 * 60; // 24 hours
+const FFMPEG_BIN = process.env.FFMPEG_PATH || "ffmpeg";
+const FFPROBE_BIN = process.env.FFPROBE_PATH || "ffprobe";
 
 export interface FfprobeMetadata {
   duration: number;
@@ -50,18 +48,21 @@ export interface FfmpegJobOptions {
 
 export class FfmpegService {
   static async ensureDirectories(): Promise<void> {
-    if (!os.existsSync(TEMP_DIR)) {
-      os.mkdirSync(TEMP_DIR, { recursive: true });
-    }
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
   }
 
   static async probe(filePath: string): Promise<FfprobeMetadata> {
     await FfmpegService.ensureDirectories();
 
     return new Promise((resolve, reject) => {
-      const args = ["-v", "error", "-show_entries", "stream", "-print_format", "json", filePath];
+      const args = [
+        "-v", "error",
+        "-show_entries", "stream:format",
+        "-print_format", "json",
+        filePath,
+      ];
 
-      execFile(ffprobePath, args, { timeout: 30000 }, (error, stdout, stderr) => {
+      execFile(FFPROBE_BIN, args, { timeout: 30000 }, (error, stdout) => {
         if (error) {
           reject(new Error(`FFprobe failed: ${error.message}`));
           return;
@@ -81,16 +82,18 @@ export class FfmpegService {
             fps = parseFloat(videoStream.avg_frame_rate) || 0;
           }
 
+          const format = metadata.format || {};
+
           const result: FfprobeMetadata = {
-            duration: metadata.format ? parseFloat(metadata.format.duration) : 0,
-            width: videoStream ? videoStream.width : 0,
-            height: videoStream ? videoStream.height : 0,
+            duration: parseFloat(format.duration) || 0,
+            width: videoStream ? videoStream.width || 0 : 0,
+            height: videoStream ? videoStream.height || 0 : 0,
             codec: videoStream?.codec_name || audioStream?.codec_name || "",
             codec_long_name: videoStream?.codec_long_name || audioStream?.codec_long_name || "",
-            bitrate: metadata.format ? parseInt(metadata.format.bitrate, 10) : 0,
+            bitrate: parseInt(format.bitrate || "0", 10) || 0,
             fps,
-            format: metadata.format ? metadata.format.format_name : "",
-            size: metadata.format ? parseInt(metadata.format.size, 10) : 0,
+            format: format.format_name || "",
+            size: parseInt(format.size || "0", 10) || 0,
             nb_streams: metadata.streams ? metadata.streams.length : 0,
             video_codec: videoStream?.codec_name || "",
             audio_codec: audioStream?.codec_name || "",
@@ -100,135 +103,10 @@ export class FfmpegService {
 
           resolve(result);
         } catch (parseError) {
-          reject(new Error(`Failed to parse FFprobe output: ${parseError.message}`));
+          reject(new Error(`Failed to parse FFprobe output: ${parseError instanceof Error ? parseError.message : String(parseError)}`));
         }
       });
     });
-  }
-
-  static async getJobId(): Promise<string> {
-    return uuidv4();
-  }
-
-  static async spawn(
-    input: string,
-    output: string,
-    customArgs: string[] = [],
-    timeout = 300000
-  ): Promise<{
-    success: boolean;
-    error?: string;
-    completed?: boolean;
-    progress?: number;
-  }> {
-    await FfmpegService.ensureDirectories();
-
-    return new Promise((resolve) => {
-      const inputPath = input;
-      const outputPath = output;
-
-      // Build FFmpeg arguments
-      const args = this.buildArgs(inputPath, outputPath, customArgs);
-
-      const child = execFile(ffmpegPath, args, {
-        timeout,
-        maxBuffer: 1024 * 1024 * 1024,
-        killSignal: "SIGTERM",
-      }, (error, stdout, stderr) => {
-        if (error && !completed) {
-          resolve({
-            success: false,
-            error: error.message || "FFmpeg processing failed",
-            completed: false,
-          });
-        } else {
-          resolve({
-            success: true,
-            completed: true,
-          });
-        }
-      });
-
-      // Handle premature exit
-      child.on("error", (spawnError) => {
-        resolve({
-          success: false,
-          error: spawnError.message || "Failed to spawn FFmpeg",
-          completed: false,
-        });
-      });
-
-      // Set up timeout
-      const timeoutId = setTimeout(() => {
-        child.kill("SIGKILL");
-        resolve({
-          success: false,
-          error: "FFmpeg operation timed out",
-          completed: false,
-        });
-      }, timeout);
-
-      // Parse FFmpeg output for progress
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        // Check process state
-        if (!child || child.killed) {
-          clearInterval(progressInterval);
-          return;
-        }
-
-        // Parse stderr for progress information
-        if (stderr) {
-          FfmpegService.parseProgressOutput(stderr, (p: number) => {
-            progress = p;
-            // Could emit progress event here
-          });
-        }
-
-        // Check if process has finished
-        if (child.exitCode !== null && child.exitCode !== undefined) {
-          clearInterval(progressInterval);
-        }
-      }, 500);
-
-      // Parse stdout and stderr after completion
-      setTimeout(() => {
-        clearInterval(progressInterval);
-
-        if (stdout) {
-          this.parseProgress(stdout, (progress) => {
-            // Progress callback
-          });
-        }
-
-        if (stderr) {
-          this.parseProgress(stderr, (progress) => {
-            // Progress callback
-          });
-        }
-
-        resolve({
-          success: true,
-          completed: true,
-        });
-      }, timeout + 1000);
-    });
-  }
-
-  static buildArgs(inputPath: string, outputPath: string, customArgs: string[] = []): string[] {
-    const baseArgs = [
-      "-y", // Overwrite output
-      "-hide_banner",
-      "-loglevel", "error+info",
-    ];
-
-    return [
-      ...baseArgs,
-      ...customArgs,
-      "-i",
-      inputPath,
-      outputPath,
-    ];
   }
 
   static async inspectInput(filePath: string): Promise<{
@@ -241,7 +119,6 @@ export class FfmpegService {
 
       let warning: string | undefined;
 
-      // Check for unsupported codecs
       if (metadata.video_codec && !this.isCodecSupported(metadata.video_codec)) {
         warning = `Video codec "${metadata.video_codec}" may not be fully supported`;
       }
@@ -252,118 +129,171 @@ export class FfmpegService {
           : `Audio codec "${metadata.audio_codec}" may not be fully supported`;
       }
 
-      // Check for very large files
       if (metadata.size && metadata.size > 500 * 1024 * 1024) {
         warning = warning
-          ? `${warning} Large file (${this.formatSize(metadata.size)})`
-          : `Large file (${this.formatSize(metadata.size)})`;
+          ? `${warning} Large file (${this.formatBytes(metadata.size)})`
+          : `Large file (${this.formatBytes(metadata.size)})`;
       }
 
-      return {
-        valid: true,
-        metadata,
-        warning,
-      };
+      return { valid: true, metadata, warning };
     } catch (error) {
       return {
         valid: false,
-        metadata: {
-          duration: 0,
-          width: 0,
-          height: 0,
-          codec: "",
-          codec_long_name: "",
-          bitrate: 0,
-          fps: 0,
-          format: "",
-          size: 0,
-          nb_streams: 0,
-          video_codec: "",
-          audio_codec: "",
-          video_bitrate: 0,
-          audio_bitrate: 0,
-        },
+        metadata: FfmpegService.emptyMetadata(),
         warning: error instanceof Error ? error.message : "Failed to inspect input",
       };
     }
   }
 
+  static emptyMetadata(): FfprobeMetadata {
+    return {
+      duration: 0,
+      width: 0,
+      height: 0,
+      codec: "",
+      codec_long_name: "",
+      bitrate: 0,
+      fps: 0,
+      format: "",
+      size: 0,
+      nb_streams: 0,
+      video_codec: "",
+      audio_codec: "",
+      video_bitrate: 0,
+      audio_bitrate: 0,
+    };
+  }
+
   static isCodecSupported(codec: string): boolean {
-    const supportedCodecs = new Set([
+    const supported = new Set([
       "h264", "hevc", "mpeg2", "mpeg4", "vp8", "vp9", "av1",
       "aac", "mp3", "mp2", "ac3", "eac3",
-      "mpg", "mov", "wmv", "flv",
+      "mpg", "mov", "wmv", "flv", "theora", "pcm_s16le", "pcm_s16be",
     ]);
-
-    return supportedCodecs.has(codec.toLowerCase());
+    return supported.has(codec.toLowerCase());
   }
 
   static formatBytes(bytes: number): string {
     if (bytes === 0) return "0 B";
-
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   }
 
-  /** Parse FFmpeg progress output and invoke callback */
-  static parseProgress(output: string, callback: (progress: number) => void): void {
-    const lines = output.split("\n");
+  /**
+   * Spawn FFmpeg with the given arguments and track real progress.
+   */
+  static spawn(
+    input: string,
+    output: string,
+    args: string[] = [],
+    timeout = 300000,
+    onProgress?: (progress: number, metric: "percentage" | "time" | "size") => void,
+    duration?: number
+  ): Promise<{ success: boolean; error?: string; outputPath?: string }> {
+    return new Promise((resolve) => {
+      FfmpegService.ensureDirectories().catch(() => {});
 
-    for (const line of lines) {
-      // Match progress lines like "frame= 1234 fps= 25 q=2.5 size=....."
-      const progressMatch = line.match(/frame=\s+\d+/);
-      if (progressMatch) {
-        // Try to extract frame number and calculate percentage
-        const frameMatch = line.match(/frame=\s+(\d+)/);
-        if (frameMatch) {
-          const currentFrame = parseInt(frameMatch[1], 10);
-          // If we have total frames, we could calculate percentage
-          // For now, just parse any percentage if present
-          const percentMatch = line.match(/(\d+\.?\d*)%/);
-          if (percentMatch) {
-            callback(parseFloat(percentMatch[1]));
+      const fullArgs = [
+        "-y",
+        "-hide_banner",
+        "-nostdin",
+        ...args,
+        output,
+      ];
+
+      let timer: NodeJS.Timeout | null = null;
+      let settled = false;
+
+      const child = spawn(FFMPEG_BIN, fullArgs, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      if (timeout > 0) {
+        timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            child.kill("SIGKILL");
+            resolve({ success: false, error: "FFmpeg operation timed out" });
+          }
+        }, timeout);
+      }
+
+      let stderrData = "";
+
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderrData += chunk.toString();
+        if (onProgress && duration && duration > 0) {
+          const timeMatch = stderrData.match(/time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)/g);
+          if (timeMatch && timeMatch.length > 0) {
+            const last = timeMatch[timeMatch.length - 1];
+            const parts = last.replace("time=", "").trim().split(":");
+            const seconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseFloat(parts[2]);
+            const pct = Math.min(99, Math.round((seconds / duration) * 100));
+            onProgress(pct, "percentage");
           }
         }
-      }
+      });
 
-      // Match time-based progress
-      const timeMatch = line.match(/time=\s+(\d{2}:\d{2}:\d{2})/);
-      if (timeMatch) {
-        // Time-based progress - could calculate percentage if we know total duration
-        // const currentTime = timeMatch[1];
-      }
+      child.on("error", (err) => {
+        if (!settled) {
+          settled = true;
+          if (timer) clearTimeout(timer);
+          resolve({ success: false, error: err.message || "Failed to spawn FFmpeg" });
+        }
+      });
 
-      // Match size-based progress
-      const sizeMatch = line.match(/size=\s+(\d+)/);
-      if (sizeMatch) {
-        // Size-based progress - could calculate percentage if we know total size
-      }
-    }
+      child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+
+        if (code === 0) {
+          if (onProgress) onProgress(100, "percentage");
+          resolve({ success: true, outputPath: output });
+        } else {
+          const lastLine = stderrData.trim().split("\n").pop() || "";
+          const friendly = FfmpegService.convertError(lastLine);
+          resolve({ success: false, error: friendly });
+        }
+      });
+    });
   }
 
-  /** Get default conversion preset based on input metadata */
-  static getDefaultPreset(
-    inputCodec: string,
-    inputFormat: string
-  ): ConversionPreset {
-    const videoCodec = "libx264"; // H.264 is universally supported
-    const audioCodec = "aac"; // AAC is universally supported
-    const crf = 23; // Default CRF (lower = better quality)
-    const preset = "medium"; // Default preset
+  /** Convert raw FFmpeg stderr into a user-friendly error */
+  static friendlyError(raw: string): string {
+    return FfmpegService.convertError(raw);
+  }
 
+  /** Convert raw FFmpeg stderr into a user-friendly error */
+  static convertError(raw: string): string {
+    const lower = raw.toLowerCase();
+    if (lower.includes("no such file")) {
+      return "We couldn't read the input file. It may have been removed or is not accessible.";
+    }
+    if (lower.includes("invalid data") || lower.includes("could not find codec") || lower.includes("unknown encoder") || lower.includes("requested output format")) {
+      return "We couldn't process this video. The input codec or container may not be supported.";
+    }
+    if (lower.includes("out of memory")) {
+      return "The video is too large to process with the available memory.";
+    }
+    if (lower.includes("permission denied")) {
+      return "We couldn't write the output file. Please try again with a different filename.";
+    }
+    return "We couldn't process this video. The input codec or container may not be supported.";
+  }
+
+  static getDefaultPreset(): ConversionPreset {
     return {
       name: "Default MP4",
-      videoCodec,
-      audioCodec,
-      crf,
-      preset,
+      videoCodec: "libx264",
+      audioCodec: "aac",
+      crf: 23,
+      preset: "medium",
     };
   }
 
-  /** Get preset for social media platforms */
   static getSocialMediaPreset(platform: string): ConversionPreset {
     const presets: Record<string, ConversionPreset> = {
       youtube: {
@@ -394,41 +324,18 @@ export class FfmpegService {
         preset: "fast",
       },
     };
-
     return presets[platform] || presets.youtube;
   }
+}
 
-  /** Parse FFmpeg progress output for real-time updates */
-  static parseProgressOutput(output: string, callback: (progress: number) => void): void {
-    const lines = output.split("\n");
+export function ffmpegCheck(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(FFMPEG_BIN, ["-version"], { timeout: 10000 }, (err) => resolve(!err));
+  });
+}
 
-    for (const line of lines) {
-      // Match "frame=NN fps=N q=N.NN size=NNNNkB time=HH:MM:SS bitrate=NNkbits/s"
-      const frameMatch = line.match(/frame=\s+(\d+)/);
-      if (frameMatch) {
-        const currentFrame = parseInt(frameMatch[1], 10);
-        // We would need total frame count for percentage - for now just track
-      }
-
-      // Match time progress: time=HH:MM:SS
-      const timeMatch = line.match(/time=\s+(\d{2}:\d{2}:\d{2})/);
-      if (timeMatch) {
-        const timeParts = timeMatch[1].split(":");
-        const currentSeconds = parseInt(timeParts[0]) * 3600 + parseInt(timeParts[1]) * 60 + parseInt(timeParts[2]);
-        // Could calculate percentage if we know total duration
-      }
-
-      // Match bitrate
-      const bitrateMatch = line.match(/bitrate=\s+(\d+)/);
-      if (bitrateMatch) {
-        // Bitrate info available
-      }
-
-      // Match final size
-      const sizeMatch = line.match(/size=\s+(\d+)/);
-      if (sizeMatch) {
-        // Final size info available
-      }
-    }
-  }
+export function ffprobeCheck(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(FFPROBE_BIN, ["-version"], { timeout: 10000 }, (err) => resolve(!err));
+  });
 }

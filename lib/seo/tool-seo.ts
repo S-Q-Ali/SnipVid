@@ -1,4 +1,4 @@
-import { Head, Metadata } from "next";
+import type { Metadata } from "next";
 
 interface SeoProps {
   title: string;
@@ -14,11 +14,12 @@ interface SeoProps {
  */
 export function SeoPage({ title, description, canonical, ogImage, twitterCard }: SeoProps): Metadata {
   return {
-    title: title,
-    description: description,
+    title,
+    description,
+    alternates: canonical ? { canonical } : undefined,
     openGraph: {
-      title: title,
-      description: description,
+      title,
+      description,
       images: [
         {
           url: ogImage || "/og-image.png",
@@ -29,9 +30,9 @@ export function SeoPage({ title, description, canonical, ogImage, twitterCard }:
       ],
     },
     twitter: {
-      card: twitterCard || "summary_large_image",
-      title: title,
-      description: description,
+      card: (twitterCard as "summary_large_image" | "summary") || "summary_large_image",
+      title,
+      description,
       images: [ogImage || "/og-image.png"],
     },
     icons: {
@@ -164,5 +165,6 @@ export function HomepageSeo() {
  * Used for [tool] routes in next.config.js
  */
 export function getToolMetadata(tool: keyof typeof toolSeoData): Metadata {
-  return getToolSeo(tool);
+  const seo = getToolSeo(tool);
+  return SeoPage(seo);
 }

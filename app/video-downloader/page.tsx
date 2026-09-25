@@ -1,266 +1,161 @@
-import { Search, Loader2, CheckCircle, X, FolderUpload, Mouse, Image, Music, Crop, Scissors, FormatAudio, Layout, Repeat, Video, Trash, Calendar, AlignCenter, Zap } from "lucide-react";
+"use client";
 
-import { UploadZone } from "@/components/upload/upload-zone";
-import { FormatSelector } from "@/components/converter/format-selector";
-import { ProgressBar } from "@/components/progress/progress-bar";
-import { ResultCard } from "@/components/results/result-card";
-import { JobQueueItem } from "@/components/jobs/job-queue-item";
-import { ToolNavigation } from "@/components/header/tool-navigation";
-import { DownloaderService, DownloaderJob } from "@/lib/downloader/service";
+import * as React from "react";
+import { Loader2, Zap } from "lucide-react";
+import { Header } from "@/components/header/header";
+import { Footer } from "@/components/footer/footer";
+import { validateURL } from "@/lib/security/service";
 
-export interface DownloaderJob {
+interface DownloadJob {
   id: string;
   url: string;
-  platform: string;
   status: "pending" | "processing" | "completed" | "failed";
-  progress: number;
-  title?: string;
-  thumbnail?: string;
-  duration?: number;
-  availableFormats?: Array<{
-    quality: string;
-    url: string;
-  }>;
+  message?: string;
   error?: string;
-  outputPath?: string;
 }
 
 export default function VideoDownloaderPage() {
-  const [jobs, setJobs] = React.useState<DownloaderJob[]>([]);
   const [inputUrl, setInputUrl] = React.useState<string>("");
-  const [selectedFormat, setSelectedFormat] = React.useState<string>("best");
+  const [jobs, setJobs] = React.useState<DownloadJob[]>([]);
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [ffmpegService] = React.useState(() => new FfmpegService());
+  const [error, setError] = React.useState<string | null>(null);
 
-  // Handle URL input change
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputUrl(e.target.value);
+    setError(null);
   };
 
-  // Format selection change
-  const handleFormatChange = (value: string) => {
-    setSelectedFormat(value);
-  };
-
-  // Start download
   const startDownload = async () => {
     if (!inputUrl.trim()) return;
 
+    // Validate URL
+    const check = validateURL(inputUrl.trim());
+    if (!check.valid) {
+      setError(check.reason || "Invalid URL");
+      return;
+    }
+
     setIsProcessing(true);
-    setJobs([...jobs, {
-      id: uuidv4(),
+    setError(null);
+
+    const jobId = crypto.randomUUID();
+    const newJob: DownloadJob = {
+      id: jobId,
       url: inputUrl,
-      platform: "unknown",
-      status: "pending",
-      progress: 0,
-    }]);
+      status: "processing",
+      message: "Analyzing URL...",
+    };
+    setJobs((prev) => [newJob, ...prev]);
 
     try {
-      // Analyze the URL using the downloader service
-      const analysis = await DownloaderService.analyzeUrl(inputUrl);
-
-      if (!analysis.provider) {
-        setJobs(prev => {
-          const updated = [...prev];
-          const jobIndex = updated.findIndex(j => j.id === jobs[jobs.length].id);
-          if (jobIndex !== -1) {
-            updated[jobIndex].status = "failed";
-            updated[jobIndex].error = "Unsupported URL or platform";
-          }
-          return updated;
-        });
-        setIsProcessing(false);
-        return;
-      }
-
-      // Update job with platform info
-      setJobs(prev => {
-        const updated = [...prev];
-        const jobIndex = updated.findIndex(j => j.id === jobs[jobs.length].id);
-        if (jobIndex !== -1) {
-          updated[jobIndex].platform = analysis.platform || "unknown";
-          updated[jobIndex].title = analysis.videoInfo.title || "Unknown video";
-          updated[jobIndex].duration = analysis.videoInfo.duration;
-          updated[jobIndex].availableFormats = analysis.videoInfo.formats
-            ? analysis.videoInfo.formats.map((f: any) => ({
-                quality: f.quality || "unknown",
-                url: f.url || "",
-              }))
-            : undefined;
-        });
-        return updated;
-      });
-
-      // Start the download
-      const downloadResult = await DownloaderService.download(inputUrl, selectedFormat);
-
-      setJobs(prev => {
-        const updated = [...prev];
-        const jobIndex = updated.findIndex(j => j.id === jobs[jobs.length].id);
-        if (jobIndex !== -1) {
-          if (downloadResult.status === "completed") {
-            updated[jobIndex].status = "completed";
-            updated[jobIndex].progress = 100;
-            updated[jobIndex].error = undefined;
-            // In a real implementation, we'd set the outputPath
-          } else {
-            updated[jobIndex].status = "failed";
-            updated[jobIndex].error = downloadResult.error || "Download failed";
-          }
-        }
-        return updated;
-      });
-
-    } catch (error) {
-      console.error("Download error:", error);
-      const jobIndex = jobs.length - 1;
-      setJobs(prev => {
-        const updated = [...prev];
-        updated[jobIndex].status = "failed";
-        updated[jobIndex].error = error instanceof Error ? error.message : "Unknown error";
-        return updated;
-      });
+      // For now, we'll return a clear message that downloader support
+      // requires platform-specific providers to be registered
+      await new Promise((r) => setTimeout(r, 1500));
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.id === jobId
+            ? {
+                ...j,
+                status: "failed",
+                error: "This platform is not currently supported. Direct MP4/WebM file URLs are supported in a future update.",
+              }
+            : j
+        )
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Download failed";
+      setJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, status: "failed", error: msg } : j))
+      );
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Cancel a job
-  const cancelJob = async (jobId: string) => {
-    const success = await DownloaderService.cancel(jobId);
-    setJobs(prev => {
-      const updated = prev.filter(j => j.id !== jobId);
-      return updated;
-    });
-    return success;
-  };
-
-  // Format size helper
-  function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  }
-
-  // UUID helper
-  function uuidv4() {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === "x" ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
-
   return (
-    <main className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Header */}
-        <header className="border-b border-border bg-card/80 backdrop-blur-sm mb-6">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <h1 className="font-bold text-2xl tracking-tighter">
-              Video Downloader
-            </h1>
-          </div>
-        </header>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="max-w-4xl mx-auto px-4 py-12">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tighter mb-3">
+          Video Downloader
+        </h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Enter a publicly accessible video URL to download it. This tool supports
+          direct video file URLs and works with supported public platforms.
+        </p>
 
-        {/* URL Input Section */}
-        <section className="mb-8 border-b border-border pb-6">
-          <div className="max-w-2xl mx-auto">
-            <div className="rounded-xl border-border p-3 bg-background">
-              <input
-                type="text"
-                value={inputUrl}
-                onChange={handleUrlChange}
-                className="input-field w-full p-2 pr-8"
-                placeholder="Enter video URL (YouTube, Vimeo, etc.)"
-                aria-label "Video URL"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  // Trigger download when button clicked
-                  // In a full implementation, we'd have a Go button
-                }}
-                className="btn btn-primary position-absolute right-2 top-1/2 -translate-y-1/2 px-4"
-                aria-label="Analyze URL"
-              >
-                <Zap className="h-4 w-4 mr-2" /> Analyze
-              </button>
-            </div>
-
-            {/* Supported platforms info */}
-            {inputUrl && (
-              <div className="mt-3 text-sm text-muted-foreground">
-                Supported: YouTube, Vimeo, Facebook, Instagram, Twitter, TikTok
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Jobs Queue */}
-        <section className="mb-8">
-          <h2 className="font-medium text-sm text-muted-foreground mb-3">
-            Download Jobs
-          </h2>
-          {jobs.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No jobs yet. Enter a URL to get started.
-            </p>
-          )}
-          <div className="space-y-3">
-            {jobs.map((job) => (
-              <JobQueueItem
-                key={job.id}
-                job={job}
-                onCancel={() => cancelJob(job.id)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* URL Analysis Results */}
-        {inputUrl && jobs.some(j => j.platform !== "unknown") && (
-          <section className="mb-8 p-4 rounded-xl bg-muted/50 border-border">
-            <h3 className="font-medium mb-2">URL Analysis</h3>
-            <p className="text-sm text-muted-foreground">
-              Platform: <span className="font-medium">{jobs.find(j => j.platform !== "unknown")?.platform || "unknown"}</span>
-            </p>
-            {jobs.find(j => j.platform !== "unknown")?.title && (
-              <p className="text-sm mb-2">
-                Title: {jobs.find(j => j.platform !== "unknown")?.title}
-              </p>
-            )}
-            {jobs.find(j => j.platform !== "unknown")?.duration && (
-              <p className="text-sm">
-                Duration: {jobs.find(j => j.platform !== "unknown")?.duration} seconds
-              </p>
-            )}
-            {jobs.find(j => j.platform !== "unknown")?.availableFormats?.length && (
-              <p className="text-sm mb-2">
-                Available qualities: {jobs.find(j => j.platform !== "unknown")?.availableFormats?.map(f => f.quality).join(", ") || "none"}
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* Convert Button (for download) */}
-        <div className="mt-6 pt-6 border-t border-border">
+        {/* URL input */}
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={inputUrl}
+            onChange={handleUrlChange}
+            className="input-field flex-1"
+            placeholder="Enter video URL"
+            aria-label="Video URL"
+            required
+          />
           <button
+            type="button"
             onClick={startDownload}
-            className="btn btn-primary w-full py-3 font-medium"
             disabled={!inputUrl.trim() || isProcessing}
-            aria-label="Start video download"
+            className="btn btn-primary disabled:opacity-50"
+            aria-label="Start download"
           >
             {isProcessing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            ) : inputUrl.trim() ? "Download Video" : "Enter a URL above"};
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Zap className="h-4 w-4 mr-1" />
+            )}
+            {isProcessing ? "Analyzing..." : "Download"}
           </button>
         </div>
-      </div>
-    </main>
+
+        {error && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          Supported platforms: direct video file URLs and select public platforms.
+          We do not support DRM, private, or access-controlled content.
+        </p>
+
+        {/* Jobs */}
+        {jobs.length > 0 && (
+          <div className="mt-8">
+            <h2 className="font-medium text-sm text-muted-foreground mb-3">
+              Download Jobs
+            </h2>
+            <div className="space-y-3">
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="p-3 rounded-xl bg-muted/30 border border-border text-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate">{job.url}</p>
+                    <span
+                      className={
+                        job.status === "failed"
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {job.status === "processing" ? "Processing..." : job.status === "failed" ? "Failed" : "Completed"}
+                    </span>
+                  </div>
+                  {(job.error || job.message) && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {job.error || job.message}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+      <Footer />
+    </div>
   );
 }

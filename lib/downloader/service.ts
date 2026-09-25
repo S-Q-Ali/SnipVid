@@ -1,4 +1,5 @@
-import { FfmpegService } from "@/lib/ffmpeg/service";
+import path from "path";
+import fs from "fs";
 
 export interface DownloaderProvider {
   name: string;
@@ -119,32 +120,21 @@ export class DownloaderService {
     const analysis = await this.analyzeUrl(url);
     if (!analysis.provider) {
       return {
-        jobId: uuidv4(),
+        jobId: crypto.randomUUID(),
         platform: "unknown",
         status: "failed",
         error: analysis.videoInfo.error || "Unsupported URL",
       };
     }
 
-    const jobId = uuidv4();
-    const tempDir = path.join(
-      process.cwd(),
-      "storage",
-      "temp",
-      jobId
-    );
-    os.mkdirSync(tempDir, { recursive: true });
+    const jobId = crypto.randomUUID();
+    const tempDir = path.join(process.cwd(), "storage", "temp", jobId);
+    fs.mkdirSync(tempDir, { recursive: true });
 
     try {
-      // Get the actual download URL from the provider
-      const downloadResult = await analysis.provider.downloadVideo(
-        url,
-        quality
-      );
+      const downloadResult = await analysis.provider.downloadVideo(url, quality);
 
       if (downloadResult.success && downloadResult.filepath) {
-        const filepath = downloadResult.filepath;
-
         return {
           jobId,
           platform: analysis.platform || "unknown",
@@ -172,23 +162,10 @@ export class DownloaderService {
 
   static async cancel(jobId: string): Promise<boolean> {
     const tempDir = path.join(process.cwd(), "storage", "temp", jobId);
-    if (os.existsSync(tempDir)) {
-      const fs = require("fs");
+    if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
       return true;
     }
     return false;
   }
 }
-
-/** UUID helper */
-function uuidv4(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === "x" ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-/** OS helper */
-const os = require("os");
