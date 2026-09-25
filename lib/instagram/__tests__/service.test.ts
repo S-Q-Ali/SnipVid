@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseProgressLine, mapYtDlpError, parseMetadata } from "../service";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import {
+  parseProgressLine,
+  mapYtDlpError,
+  parseMetadata,
+  sanitizeFilename,
+  finalizeDownloadedFiles,
+} from "../service";
 import type { InstagramUrlInfo } from "../url";
 
 const postInfo: InstagramUrlInfo = {
@@ -38,12 +47,54 @@ describe("mapYtDlpError", () => {
     ).toContain("private");
   });
 
+  it("maps the anonymous-access wall message", () => {
+    const text =
+      "Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in. If it is not, then use --cookies";
+    expect(mapYtDlpError(text)).toContain("not accessible anonymously");
+  });
+
+  it("maps anonymous rate-limiting", () => {
+    expect(mapYtDlpError("You have exceeded the rate-limit for accessing posts anonymously")).toContain(
+      "rate-limiting"
+    );
+  });
+
   it("falls back to a generic message otherwise", () => {
     expect(mapYtDlpError("Some unknown failure thaw")).toContain("Could not download");
   });
 
   it("returns a message even for empty stderr", () => {
     expect(mapYtDlpError("")).toBeTruthy();
+  });
+});
+
+describe("sanitizeFilename", () => {
+  it("replaces unsafe characters with underscores, UTF-8 included", () => {
+    expect(sanitizeFilename("Video by todoytoo [C59fbW7PFZn].mp4")).toBe(
+      "Video_by_todoytoo__C59fbW7PFZn_.mp4"
+    );
+  });
+  it("keeps safe characters intact", () => {
+    expect(sanitizeFilename("a-b_c.d")).toBe("a-b_c.d");
+  });
+});
+
+describe("finalizeDownloadedFiles", () => {
+  it("renames raw yt-dlp titles to sanitized names and returns relative paths", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-finalize-"));
+    try {
+      fs.writeFileSync(path.join(dir, "Video by todoytoo [C59fbW7PFZn].mp4"), "data");
+      fs.mkdirSync(path.join(dir, "sub"));
+      fs.writeFileSync(path.join(dir, "sub", "thumb photo.jpg"), "img");
+      const files = finalizeDownloadedFiles(dir);
+      expect(files).toContain("Video_by_todoytoo__C59fbW7PFZn_.mp4");
+      expect(files).toContain("sub/thumb_photo.jpg");
+      expect(
+        fs.existsSync(path.join(dir, "Video_by_todoytoo__C59fbW7PFZn_.mp4"))
+      ).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

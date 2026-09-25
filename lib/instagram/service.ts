@@ -45,6 +45,12 @@ export function mapYtDlpError(stderr: string): string {
   if (/private|without logging in/gi.test(text)) {
     return "This account or content is private and cannot be downloaded anonymously.";
   }
+  if (/empty media response|empty response/gi.test(text)) {
+    return "This post is not accessible anonymously. Instagram now requires login for most content — only publicly extractable posts will download.";
+  }
+  if (/rate.?limit/gi.test(text)) {
+    return "Instagram is rate-limiting anonymous downloads right now. Please wait a few minutes and try again.";
+  }
   if (text.trim()) {
     return "Could not download this content. The link may be invalid, deleted, or no longer available.";
   }
@@ -205,12 +211,28 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
         return;
       }
       job.progress = 100;
-      job.files = listFiles(dir);
+      job.files = finalizeDownloadedFiles(dir);
       job.status = job.files.length > 0 ? "completed" : "failed";
       if (job.status === "failed") job.error = "No files were produced by the download.";
       resolve(job);
     });
   });
+}
+
+export function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export function finalizeDownloadedFiles(dir: string): string[] {
+  const raw = listFiles(dir);
+  for (const rel of raw) {
+    const dirPart = path.dirname(rel);
+    const base = sanitizeFilename(path.basename(rel));
+    const from = path.join(dir, rel);
+    const to = path.join(dir, dirPart === "." ? base : path.join(dirPart, base));
+    if (from !== to && fs.existsSync(from)) fs.renameSync(from, to);
+  }
+  return listFiles(dir);
 }
 
 function listFiles(dir: string, prefix: string = ""): string[] {
