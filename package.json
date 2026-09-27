@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint app components lib",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "next build && node --test --test-concurrency=1 scripts/api-e2e.mjs"
   },
   "private": true,
   "dependencies": {
