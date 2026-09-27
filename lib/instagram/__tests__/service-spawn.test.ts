@@ -180,14 +180,14 @@ describe("startDownloadJob (spawn safety)", () => {
     expect(finished.error).toContain("yt-dlp could not be started");
   });
 
-  it("reports a generic failure when the process exits non-zero without stderr", async () => {
+  it("reports an unreachable-instagram failure when the process exits non-zero without stderr", async () => {
     const job = makeJob();
     const promise = startDownloadJob(job);
 
     spawned[0].child.emit("close", 1);
     const finished = await promise;
     expect(finished.status).toBe("failed");
-    expect(finished.error).toBe("Download failed.");
+    expect(finished.error).toBe("Instagram could not be reached. Please try again in a moment.");
   });
 
   it("fails when the process exits cleanly but produced no files", async () => {
@@ -198,6 +198,62 @@ describe("startDownloadJob (spawn safety)", () => {
     const finished = await promise;
     expect(finished.status).toBe("failed");
     expect(finished.error).toBe("No files were produced by the download.");
+  });
+});
+
+describe("startDownloadJob (diagnostics hygiene)", () => {
+  beforeEach(() => {
+    spawned.length = 0;
+    childMode = "normal";
+  });
+
+  afterEach(() => {
+    cleanupCreatedJobs();
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps raw stderr out of the user-facing error when the download succeeds", async () => {
+    const job = makeJob();
+    const promise = startDownloadJob(job);
+
+    const call = spawned[0];
+    call.child.stderr.emit("data", Buffer.from("WARNING: odd thing at C:/secret/yt-dlp.exe\n"));
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "reel.mp4"), "data");
+    call.child.emit("close", 0);
+
+    const finished = await promise;
+    expect(finished.status).toBe("completed");
+    expect(finished.error).toBeUndefined();
+    expect(finished.diagnostics).toContain("C:/secret/yt-dlp.exe");
+  });
+
+  it("does not leak the configured binary path when the process cannot start", async () => {
+    vi.stubEnv("YTDLP_PATH", "C:/secret/tools/yt-dlp.exe");
+    const job = makeJob();
+    const promise = startDownloadJob(job);
+
+    spawned[0].child.emit("error", new Error("spawn C:/secret/tools/yt-dlp.exe ENOENT"));
+
+    const finished = await promise;
+    expect(finished.status).toBe("failed");
+    expect(finished.error).toContain("yt-dlp could not be started");
+    expect(finished.error).not.toContain("secret");
+    expect(finished.diagnostics).toContain("C:/secret/tools/yt-dlp.exe");
+  });
+
+  it("sanitizes stderr into a friendly message on failure", async () => {
+    const job = makeJob();
+    const promise = startDownloadJob(job);
+
+    const call = spawned[0];
+    call.child.stderr.emit("data", Buffer.from("ERROR: cookie sessionid=abc123 rejected\n"));
+    call.child.emit("close", 1);
+
+    const finished = await promise;
+    expect(finished.status).toBe("failed");
+    expect(finished.error).not.toContain("abc123");
+    expect(finished.diagnostics).not.toContain("abc123");
+    expect(finished.diagnostics).toContain("sessionid=");
   });
 });
 

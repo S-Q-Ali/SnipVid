@@ -68,6 +68,31 @@ describe("mapYtDlpError", () => {
   it("returns a message even for empty stderr", () => {
     expect(mapYtDlpError("")).toBeTruthy();
   });
+
+  it("does not blame the user's link when Instagram blocks extraction outright", () => {
+    // Observed live from yt-dlp 2026.07.04 against a public profile.
+    const text =
+      "ERROR: [instagram:user] instagram: Unable to extract data; please report this issue on https://github.com/yt-dlp/yt-dlp/issues";
+
+    const message = mapYtDlpError(text);
+
+    expect(message).not.toContain("no longer available");
+    expect(message).not.toContain("link may be invalid");
+    expect(message).toMatch(/cookie|login/i);
+  });
+
+  it("points at the server session instead of the user's link when cookies are configured", () => {
+    const message = mapYtDlpError("instagram: Unable to extract data", { hasCookies: true });
+
+    expect(message).toMatch(/cookie/i);
+    expect(message).toMatch(/expired|refresh|update/i);
+  });
+
+  it("recognises a deleted or unavailable post", () => {
+    expect(
+      mapYtDlpError("ERROR: [instagram] CxYz123AbcD: The requested URL is not available")
+    ).toMatch(/unavailable|no longer available|deleted/i);
+  });
 });
 
 describe("sanitizeFilename", () => {

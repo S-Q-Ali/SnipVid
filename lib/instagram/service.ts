@@ -4,6 +4,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 
 import { classifyInstagramUrl, type InstagramUrlInfo } from "./url";
+import { cookieArgs, hasCookieSession, redactSecrets } from "./cookies";
 import type {
   DownloadJob,
   InstagramAnalyzeResult,
@@ -37,19 +38,46 @@ export function parseProgressLine(line: string): number | null {
   return Math.min(100, parseFloat(match[1]));
 }
 
-export function mapYtDlpError(stderr: string): string {
-  const text = stderr || "";
-  if (/login_?required|sign in|log in|login to|authentication/gi.test(text)) {
-    return "This content requires an Instagram login. SnipVid works anonymously for public posts, reels, and photos only.";
+/** Maximum characters of yt-dlp stderr retained per job for diagnosis. */
+const MAX_DIAGNOSTICS_CHARS = 4000;
+
+function appendDiagnostics(existing: string | undefined, chunk: string): string {
+  const addition = redactSecrets(chunk).trim();
+  if (!addition) return existing ?? "";
+  const combined = existing ? `${existing}\n${addition}` : addition;
+  return combined.length > MAX_DIAGNOSTICS_CHARS
+    ? combined.slice(0, MAX_DIAGNOSTICS_CHARS)
+    : combined;
+}
+
+const STARTUP_HINT = "yt-dlp could not be started. Install yt-dlp or set YTDLP_PATH.";
+
+const LOGIN_WALL_PATTERN =
+  /login_?required|sign in|log in|login to|authentication|unable to extract data|empty media response|empty response/i;
+
+function sessionRequiredMessage(hasCookies: boolean): string {
+  if (hasCookies) {
+    return "Instagram rejected the server's session cookie. It has probably expired - export a fresh session and update INSTAGRAM_COOKIES_FILE.";
   }
-  if (/private|without logging in/gi.test(text)) {
+  return "This content is not accessible anonymously - Instagram now requires a login for most posts. An operator can supply an Instagram session cookie via INSTAGRAM_COOKIES_FILE.";
+}
+
+export function mapYtDlpError(
+  stderr: string,
+  options: { hasCookies?: boolean } = {}
+): string {
+  const text = stderr || "";
+  if (LOGIN_WALL_PATTERN.test(text)) {
+    return sessionRequiredMessage(Boolean(options.hasCookies));
+  }
+  if (/private|without logging in/i.test(text)) {
     return "This account or content is private and cannot be downloaded anonymously.";
   }
-  if (/empty media response|empty response/gi.test(text)) {
-    return "This post is not accessible anonymously. Instagram now requires login for most content — only publicly extractable posts will download.";
-  }
-  if (/rate.?limit/gi.test(text)) {
+  if (/rate.?limit/i.test(text)) {
     return "Instagram is rate-limiting anonymous downloads right now. Please wait a few minutes and try again.";
+  }
+  if (/not available|unavailable|does not exist|has been deleted|no longer/i.test(text)) {
+    return "This post is no longer available. It may have been deleted or made private.";
   }
   if (text.trim()) {
     return "Could not download this content. The link may be invalid, deleted, or no longer available.";
@@ -109,15 +137,12 @@ function runJson(args: string[]): Promise<Record<string, unknown>> {
     proc.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
     proc.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
     proc.on("error", (err) => {
-      reject(
-        new YtDlpError(
-          `yt-dlp could not be started (${err.message}). Install yt-dlp or set YTDLP_PATH.`
-        )
-      );
+      console.error("yt-dlp spawn failed:", redactSecrets(err.message));
+      reject(new YtDlpError(STARTUP_HINT));
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        reject(new YtDlpError(mapYtDlpError(stderr)));
+        reject(new YtDlpError(mapYtDlpError(redactSecrets(stderr), { hasCookies: hasCookieSession() })));
         return;
       }
       try {
@@ -130,7 +155,7 @@ function runJson(args: string[]): Promise<Record<string, unknown>> {
 }
 
 export async function analyzeInstagramUrl(urlInfo: InstagramUrlInfo): Promise<InstagramAnalyzeResult> {
-  const json = await runJson(["-J", "--no-warnings", urlInfo.canonicalUrl]);
+  const json = await runJson(["-J", "--no-warnings", ...cookieArgs(), urlInfo.canonicalUrl]);
   return parseMetadata(json, urlInfo);
 }
 
@@ -187,6 +212,7 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
     "--newline",
     "--no-warnings",
     "--no-colors",
+    ...cookieArgs(),
   ];
   if (job.itemIndex !== undefined) {
     args.push("--playlist-items", String(job.itemIndex));
@@ -202,8 +228,9 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
       return;
     }
     proc.stderr.on("data", (chunk: Buffer) => {
-      const text = chunk.toString();
-      if (!job.error) job.error = text.trim();
+      // Stderr can contain session material and absolute paths, so it is kept
+      // out of `error` (which the API returns) and redacted for server logs.
+      job.diagnostics = appendDiagnostics(job.diagnostics, chunk.toString());
     });
     proc.stdout.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString().split("\n")) {
@@ -213,14 +240,16 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
     });
     proc.on("error", (err) => {
       job.status = "failed";
-      job.error = `yt-dlp could not be started (${err.message}). Install yt-dlp or set YTDLP_PATH.`;
+      job.error = STARTUP_HINT;
+      job.diagnostics = appendDiagnostics(job.diagnostics, err.message);
+      console.error("yt-dlp spawn failed:", job.diagnostics);
       resolve(job);
     });
     proc.on("close", (code) => {
       if (code !== 0) {
         job.status = "failed";
-        if (job.error) job.error = mapYtDlpError(job.error);
-        else job.error = "Download failed.";
+        job.error = mapYtDlpError(job.diagnostics ?? "", { hasCookies: hasCookieSession() });
+        console.error("yt-dlp download failed:", job.diagnostics);
         resolve(job);
         return;
       }

@@ -31,5 +31,10 @@ export interface DownloadJob {
   files: string[];
   itemIndex?: number;
   error?: string;
+  /**
+   * Redacted yt-dlp stderr, kept for server-side diagnosis only. Never exposed
+   * through the API - it can contain session material and absolute paths.
+   */
+  diagnostics?: string;
   createdAt: number;
 }

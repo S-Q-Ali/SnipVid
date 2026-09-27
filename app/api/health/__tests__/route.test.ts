@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { EventEmitter } from "events";
 import { PassThrough } from "stream";
 import fs from "fs";
+import os from "os";
+import path from "path";
 import type { ChildProcess } from "child_process";
 
 vi.mock("@/lib/instagram/service", async (importOriginal) => {
@@ -110,5 +112,61 @@ describe("GET /api/health", () => {
       status: "error",
       detail: "Cannot access temporary storage",
     });
+  });
+
+  it("stays ok with no Instagram session configured, reporting anonymous mode", async () => {
+    const proc = fakeProcess();
+    stubProcess(proc);
+    vi.stubEnv("INSTAGRAM_COOKIES_FILE", "");
+
+    const pending = GET();
+    proc.stdout.write("2025.09.25\n");
+    proc.emit("close", 0);
+
+    const body = await (await pending).json();
+    expect(body.checks.session.status).toBe("anonymous");
+    expect(body.status).toBe("ok");
+    vi.unstubAllEnvs();
+  });
+
+  it("reports the session as configured without disclosing its path", async () => {
+    const proc = fakeProcess();
+    stubProcess(proc);
+    const secret = path.join(os.tmpdir(), "snipvid-secret-instagram-cookies.txt");
+    fs.writeFileSync(secret, "# Netscape HTTP Cookie File\n");
+    vi.stubEnv("INSTAGRAM_COOKIES_FILE", secret);
+
+    try {
+      const pending = GET();
+      proc.stdout.write("2025.09.25\n");
+      proc.emit("close", 0);
+
+      const body = await (await pending).json();
+      expect(body.checks.session.status).toBe("available");
+      expect(JSON.stringify(body)).not.toContain(secret);
+      expect(JSON.stringify(body)).not.toContain("snipvid-secret");
+    } finally {
+      fs.rmSync(secret, { force: true });
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("degrades when a session is configured but its file is missing", async () => {
+    const proc = fakeProcess();
+    stubProcess(proc);
+    vi.stubEnv("INSTAGRAM_COOKIES_FILE", path.join(os.tmpdir(), "snipvid-absent-cookies.txt"));
+
+    try {
+      const pending = GET();
+      proc.stdout.write("2025.09.25\n");
+      proc.emit("close", 0);
+
+      const body = await (await pending).json();
+      expect(body.checks.session.status).toBe("error");
+      expect(body.checks.session.detail).toBe("INSTAGRAM_COOKIES_FILE is set but unreadable");
+      expect(body.status).toBe("degraded");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -19,6 +19,12 @@ next-env.d.ts
 .env.local
 .env*.local
 
+# Instagram session material: a real cookies.txt is a credential and must never
+# reach git. Keep secrets on a mounted path outside the repo in production.
+cookies.txt
+*cookies*.txt
+*.cookies
+
 # runtime state: downloaded Instagram media lives here
 /storage/
 

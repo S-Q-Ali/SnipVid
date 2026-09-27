@@ -35,7 +35,9 @@ export async function GET(
       status: job.status,
       progress: job.progress,
       files: job.files.map((name) => ({ name, url: downloadUrl(job.id, name) })),
-      error: job.error ?? undefined,
+      // `error` is only meaningful for a failed job, and `diagnostics` (raw,
+      // redacted yt-dlp stderr) is server-side only and never serialized here.
+      error: job.status === "failed" ? (job.error ?? "The download failed unexpectedly.") : undefined,
     },
     200
   );

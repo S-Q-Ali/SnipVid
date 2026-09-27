@@ -24,7 +24,6 @@ function job(overrides: Partial<DownloadJob> = {}): DownloadJob {
     ...overrides,
   };
 }
-
 function get(id: string) {
   return GET(new Request(`http://localhost/api/instagram/jobs/${id}`), {
     params: Promise.resolve({ id }),
@@ -76,5 +75,33 @@ describe("GET /api/instagram/jobs/[id]", () => {
     const body = await res.json();
     expect(body.error).toBe("Some content requires login.");
     expect(JSON.stringify(body)).not.toContain("at ");
+  });
+
+  it("never returns an error field for a job that did not fail", async () => {
+    vi.mocked(getDownloadJob).mockReturnValue(
+      job({ status: "completed", progress: 100, error: "stale stderr noise" })
+    );
+
+    const res = await get("11111111-2222-3333-4444-555555555555");
+    const body = await res.json();
+
+    expect(body.status).toBe("completed");
+    expect(body.error).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("stale stderr noise");
+  });
+
+  it("never returns raw yt-dlp diagnostics to the client", async () => {
+    vi.mocked(getDownloadJob).mockReturnValue(
+      job({
+        status: "failed",
+        error: "This content requires an Instagram login.",
+        diagnostics: "ERROR: unable to extract data for /p/AbC using sessionid=secret",
+      })
+    );
+
+    const res = await get("11111111-2222-3333-4444-555555555555");
+    const body = await res.json();
+
+    expect(JSON.stringify(body)).not.toContain("secret");
   });
 });
