@@ -17,6 +17,7 @@ function makeFakeChild() {
   const child = {
     stdout,
     stderr,
+    kill: vi.fn(),
     on(event: string, cb: (...args: unknown[]) => void) {
       (handlers[event] = handlers[event] || []).push(cb);
       return child;
@@ -49,10 +50,26 @@ import {
   downloadInstagramUrl,
   analyzeFromInput,
   analyzeInstagramUrl,
+  parseMetadata,
+  purgeExpiredJobs,
+  purgeOrphanDirectories,
   YtDlpError,
   TEMP_ROOT,
+  JOB_TTL_MS,
+  MAX_JOBS,
+  MAX_ENTRIES,
+  MAX_CONCURRENT_DOWNLOADS,
+  DOWNLOAD_TIMEOUT_MS,
+  ANALYZE_TIMEOUT_MS,
 } from "../service";
 import { classifyInstagramUrl } from "../url";
+
+const postInfo = {
+  kind: "post" as const,
+  mediaType: "post" as const,
+  shortcode: "CxYz123AbcD",
+  canonicalUrl: "https://www.instagram.com/p/CxYz123AbcD/",
+};
 
 const createdJobIds: string[] = [];
 
@@ -310,6 +327,219 @@ describe("analyzeInstagramUrl (yt-dlp -J)", () => {
     spawned[0].child.stdout.emit("data", Buffer.from("<html>nope</html>"));
     spawned[0].child.emit("close", 0);
     await expect(promise).rejects.toThrow(/unexpected data/);
+  });
+});
+
+describe("resource bounds", () => {
+  beforeEach(() => {
+    spawned.length = 0;
+    childMode = "normal";
+  });
+
+  afterEach(() => {
+    cleanupCreatedJobs();
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("bounds the number of yt-dlp processes running at once", async () => {
+    const runs = [
+      startDownloadJob(newJob("https://www.instagram.com/reel/CxYz123AbcD/")),
+      startDownloadJob(newJob("https://www.instagram.com/reel/CxYz123AbcD/")),
+      startDownloadJob(newJob("https://www.instagram.com/reel/CxYz123AbcD/")),
+      startDownloadJob(newJob("https://www.instagram.com/reel/CxYz123AbcD/")),
+    ];
+
+    // The run slot is acquired asynchronously, so let the queue settle.
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(spawned.length).toBe(MAX_CONCURRENT_DOWNLOADS);
+
+    // Let every queued run through, then fail them all so nothing dangles.
+    for (let i = 0; i < runs.length; i += 1) {
+      while (spawned.length <= i) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      spawned[i].child.emit("close", 1);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await Promise.all(runs);
+  });
+
+  it("stops a download that overruns its time budget", async () => {
+    vi.useFakeTimers();
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    const promise = startDownloadJob(job);
+
+    await vi.advanceTimersByTimeAsync(DOWNLOAD_TIMEOUT_MS + 1000);
+
+    const finished = await promise;
+    expect(finished.status).toBe("failed");
+    expect(finished.error).toMatch(/too long/i);
+    expect(spawned[0].child.kill).toHaveBeenCalled();
+  });
+
+  it("stops an analyze call that overruns its time budget", async () => {
+    vi.useFakeTimers();
+    const promise = analyzeInstagramUrl(
+      classifyInstagramUrl("https://www.instagram.com/reel/CxYz123AbcD/")
+    );
+    // Attach the expectation before advancing, otherwise the rejection lands
+    // with no handler attached and is reported as an unhandled rejection.
+    const rejection = expect(promise).rejects.toThrow(/too long/i);
+
+    await vi.advanceTimersByTimeAsync(ANALYZE_TIMEOUT_MS + 1000);
+
+    await rejection;
+    expect(spawned[0].child.kill).toHaveBeenCalled();
+  });
+
+  it("does not time out an analyze call that finishes in time", async () => {
+    vi.useFakeTimers();
+    const promise = analyzeInstagramUrl(
+      classifyInstagramUrl("https://www.instagram.com/reel/CxYz123AbcD/")
+    );
+    spawned[0].child.stdout.emit("data", Buffer.from(JSON.stringify({ id: "r1", title: "ok" })));
+    spawned[0].child.emit("close", 0);
+
+    await expect(promise).resolves.toMatchObject({ title: "ok" });
+
+    await vi.advanceTimersByTimeAsync(ANALYZE_TIMEOUT_MS + 1000);
+    expect(spawned[0].child.kill).not.toHaveBeenCalled();
+  });
+
+  it("caps the size of a single downloaded file", async () => {
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    const promise = startDownloadJob(job);
+
+    const args = spawned[0].args;
+    expect(args).toContain("--max-filesize");
+    expect(args[args.indexOf("--max-filesize") + 1]).toMatch(/^\d+[MG]$/);
+
+    spawned[0].child.emit("close", 1);
+    await promise;
+  });
+
+  it("caps how many playlist items a bulk download will fetch", async () => {
+    const job = newJob("https://www.instagram.com/instagram/");
+    const promise = startDownloadJob(job);
+
+    const args = spawned[0].args;
+    expect(args).toContain("--playlist-end");
+    expect(Number(args[args.indexOf("--playlist-end") + 1])).toBeGreaterThan(0);
+
+    spawned[0].child.emit("close", 1);
+    await promise;
+  });
+
+  it("does not cap playlist items when a single carousel item was requested", async () => {
+    const job = newJob("https://www.instagram.com/p/CxYz123AbcD/", 2);
+    const promise = startDownloadJob(job);
+
+    expect(spawned[0].args).not.toContain("--playlist-end");
+
+    spawned[0].child.emit("close", 1);
+    await promise;
+  });
+
+  it("fails the job rather than rejecting when the output directory cannot be created", async () => {
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    const mkdir = vi.spyOn(fs, "mkdirSync").mockImplementation(() => {
+      throw new Error("ENOSPC: no space left on device");
+    });
+
+    try {
+      const finished = await startDownloadJob(job);
+      expect(finished.status).toBe("failed");
+      expect(finished.error).toMatch(/temporary storage/i);
+      expect(spawned).toHaveLength(0);
+    } finally {
+      mkdir.mockRestore();
+    }
+  });
+});
+
+describe("job retention", () => {
+  beforeEach(() => {
+    spawned.length = 0;
+    childMode = "normal";
+  });
+
+  afterEach(() => {
+    cleanupCreatedJobs();
+    vi.unstubAllEnvs();
+  });
+
+  it("deletes finished jobs and their files once past the retention window", () => {
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "reel.mp4"), "data");
+    job.status = "completed";
+    job.createdAt = Date.now() - JOB_TTL_MS - 60_000;
+
+    const removed = purgeExpiredJobs();
+
+    expect(removed).toBeGreaterThanOrEqual(1);
+    expect(getDownloadJob(job.id)).toBeUndefined();
+    expect(fs.existsSync(path.join(TEMP_ROOT, job.id))).toBe(false);
+  });
+
+  it("keeps a job that is still running past the retention window", () => {
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    job.status = "processing";
+    job.createdAt = Date.now() - JOB_TTL_MS - 60_000;
+
+    purgeExpiredJobs();
+
+    expect(getDownloadJob(job.id)).toBe(job);
+  });
+
+  it("keeps a recently finished job so the user can still collect the file", () => {
+    const job = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    job.status = "completed";
+
+    purgeExpiredJobs();
+
+    expect(getDownloadJob(job.id)).toBe(job);
+  });
+
+  it("never tracks more jobs than the cap", () => {
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_JOBS + 25; i += 1) {
+      ids.push(newJob("https://www.instagram.com/reel/CxYz123AbcD/").id);
+    }
+
+    expect(getDownloadJob(ids[0])).toBeUndefined();
+    expect(getDownloadJob(ids[ids.length - 1])).toBeDefined();
+  });
+
+  it("cleans up directories left behind by a previous process", () => {
+    const orphan = path.join(TEMP_ROOT, "orphaned-job-directory");
+    fs.mkdirSync(orphan, { recursive: true });
+    fs.writeFileSync(path.join(orphan, "reel.mp4"), "data");
+    const live = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    fs.mkdirSync(path.join(TEMP_ROOT, live.id), { recursive: true });
+
+    const removed = purgeOrphanDirectories();
+
+    expect(removed).toBeGreaterThanOrEqual(1);
+    expect(fs.existsSync(orphan)).toBe(false);
+    expect(fs.existsSync(path.join(TEMP_ROOT, live.id))).toBe(true);
+  });
+});
+
+describe("parseMetadata bounds", () => {
+  it("caps how many carousel items it reports and keeps the real total", () => {
+    const entries = Array.from({ length: MAX_ENTRIES + 40 }, (_, i) => ({
+      id: `e${i}`,
+      url: `http://x/${i}.jpg`,
+    }));
+
+    const result = parseMetadata({ entries }, postInfo);
+
+    expect(result.media).toHaveLength(MAX_ENTRIES);
+    expect(result.totalItems).toBe(MAX_ENTRIES + 40);
   });
 });
 

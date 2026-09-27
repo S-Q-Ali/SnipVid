@@ -60,7 +60,14 @@ export async function POST(request: Request) {
   }
 
   const job = createDownloadJob(url, info, itemIndex);
-  void startDownloadJob(job);
+  // Fire and forget: the client polls the job. The guard is here so a runner
+  // that rejects for any unforeseen reason cannot become an unhandled rejection
+  // and take the process down with it.
+  void startDownloadJob(job).catch((error: unknown) => {
+    console.error("instagram download runner failed:", error);
+    job.status = "failed";
+    job.error = "The download could not be started. Please try again.";
+  });
 
   return jsonResponse({ jobId: job.id, status: job.status }, 202);
 }

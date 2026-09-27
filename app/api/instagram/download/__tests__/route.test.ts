@@ -135,4 +135,22 @@ describe("POST /api/instagram/download", () => {
     const res = await POST(post({ url: "https://www.instagram.com/reel/CxYz123AbcD/" }));
     expect(res.status).toBe(503);
   });
+
+  it("still accepts the request if the background runner throws unexpectedly", async () => {
+    vi.mocked(createDownloadJob).mockImplementation((input, info) => ({
+      id: "job-boom",
+      url: input,
+      mediaType: info.mediaType || "post",
+      status: "pending",
+      progress: 0,
+      files: [],
+      createdAt: Date.now(),
+    }));
+    vi.mocked(startDownloadJob).mockRejectedValue(new Error("unexpected"));
+
+    // An escaping rejection here would surface as an unhandled rejection and
+    // fail the test run, which is exactly what the route's guard prevents.
+    const res = await POST(post({ url: "https://www.instagram.com/reel/CxYz123AbcD/" }, "10.0.77.1"));
+    expect(res.status).toBe(202);
+  });
 });

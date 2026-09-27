@@ -17,6 +17,11 @@ export interface InstagramAnalyzeResult {
   duration?: number;
   isCarousel: boolean;
   media: InstagramMediaItem[];
+  /**
+   * How many items the post actually has. `media` is capped, so this can be
+   * larger than `media.length` and the UI uses it to say what was withheld.
+   */
+  totalItems?: number;
   error?: string;
 }
 

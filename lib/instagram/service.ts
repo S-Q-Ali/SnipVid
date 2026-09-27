@@ -41,6 +41,32 @@ export function parseProgressLine(line: string): number | null {
 /** Maximum characters of yt-dlp stderr retained per job for diagnosis. */
 const MAX_DIAGNOSTICS_CHARS = 4000;
 
+/** How long a finished job and its downloaded media stay collectable. */
+export const JOB_TTL_MS = 60 * 60 * 1000;
+
+/** Upper bound on jobs held in memory, so the registry cannot grow forever. */
+export const MAX_JOBS = 200;
+
+/** Upper bound on yt-dlp processes running at the same time. */
+export const MAX_CONCURRENT_DOWNLOADS = 3;
+
+export const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+export const ANALYZE_TIMEOUT_MS = 60 * 1000;
+
+/** Upper bound on media items reported by analyze, matching the item cap. */
+export const MAX_ENTRIES = 50;
+
+/** Upper bound on items a single bulk download will fetch. */
+export const MAX_BULK_ITEMS = 50;
+
+/** Upper bound on one downloaded file, so one request cannot fill the disk. */
+const MAX_FILE_SIZE = "512M";
+
+const TIMEOUT_MESSAGES = {
+  analyze: "Instagram took too long to respond. Please try again in a moment.",
+  download: "The download took too long and was stopped. Please try again.",
+} as const;
+
 function appendDiagnostics(existing: string | undefined, chunk: string): string {
   const addition = redactSecrets(chunk).trim();
   if (!addition) return existing ?? "";
@@ -97,7 +123,8 @@ export function parseMetadata(
   urlInfo: InstagramUrlInfo
 ): InstagramAnalyzeResult {
   const mediaType = urlInfo.mediaType || "post";
-  const entries = Array.isArray(json.entries) ? (json.entries as Record<string, unknown>[]) : null;
+  const allEntries = Array.isArray(json.entries) ? (json.entries as Record<string, unknown>[]) : null;
+  const entries = allEntries ? allEntries.slice(0, MAX_ENTRIES) : null;
   const isCarousel = entries !== null && entries.length > 1;
 
   const media: InstagramMediaItem[] = (entries ?? [json]).map((entry, index) => ({
@@ -122,7 +149,36 @@ export function parseMetadata(
     duration: typeof json.duration === "number" ? json.duration : undefined,
     isCarousel,
     media,
+    totalItems: allEntries ? allEntries.length : media.length,
   };
+}
+
+/**
+ * Bounded number of concurrent yt-dlp downloads. The route already returns 202
+ * and the client polls, so a run that has to wait stays "pending" instead of
+ * being rejected.
+ */
+let activeRuns = 0;
+const runWaiters: Array<() => void> = [];
+
+/**
+ * Take a run slot. Returns undefined when one was free immediately, so the
+ * common case keeps spawning synchronously; only a queued run defers.
+ */
+function acquireRunSlot(): Promise<void> | undefined {
+  if (activeRuns < MAX_CONCURRENT_DOWNLOADS) {
+    activeRuns += 1;
+    return undefined;
+  }
+  return new Promise<void>((resolve) => runWaiters.push(resolve)).then(() => {
+    activeRuns += 1;
+  });
+}
+
+function releaseRunSlot(): void {
+  activeRuns -= 1;
+  const next = runWaiters.shift();
+  if (next) next();
 }
 
 function runJson(args: string[]): Promise<Record<string, unknown>> {
@@ -134,22 +190,42 @@ function runJson(args: string[]): Promise<Record<string, unknown>> {
     }
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      proc.kill();
+      reject(new YtDlpError(TIMEOUT_MESSAGES.analyze));
+    }, ANALYZE_TIMEOUT_MS);
+
+    const settle = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      action();
+    };
+
     proc.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
     proc.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
     proc.on("error", (err) => {
       console.error("yt-dlp spawn failed:", redactSecrets(err.message));
-      reject(new YtDlpError(STARTUP_HINT));
+      settle(() => reject(new YtDlpError(STARTUP_HINT)));
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        reject(new YtDlpError(mapYtDlpError(redactSecrets(stderr), { hasCookies: hasCookieSession() })));
+        settle(() =>
+          reject(new YtDlpError(mapYtDlpError(redactSecrets(stderr), { hasCookies: hasCookieSession() })))
+        );
         return;
       }
-      try {
-        resolve(JSON.parse(stdout) as Record<string, unknown>);
-      } catch {
-        reject(new YtDlpError("Instagram returned unexpected data. Please try again."));
-      }
+      settle(() => {
+        try {
+          resolve(JSON.parse(stdout) as Record<string, unknown>);
+        } catch {
+          reject(new YtDlpError("Instagram returned unexpected data. Please try again."));
+        }
+      });
     });
   });
 }
@@ -173,11 +249,82 @@ export function getDownloadJob(id: string): DownloadJob | undefined {
   return jobs.get(id);
 }
 
+function removeJobFiles(id: string): void {
+  try {
+    fs.rmSync(jobDir(id), { recursive: true, force: true });
+  } catch (error) {
+    console.error("failed to remove job directory:", error);
+  }
+}
+
+function evictOldestJob(): void {
+  for (const [id, job] of jobs) {
+    // Never evict a run that is holding a yt-dlp process right now.
+    if (job.status === "processing") continue;
+    jobs.delete(id);
+    removeJobFiles(id);
+    return;
+  }
+}
+
+/**
+ * Delete finished jobs (and the media they produced) once they are older than
+ * the retention window, and drop the oldest finished jobs once the registry is
+ * full. In-flight jobs are never evicted.
+ */
+export function purgeExpiredJobs(now: number = Date.now()): number {
+  let removed = 0;
+  for (const [id, job] of jobs) {
+    if (job.status !== "completed" && job.status !== "failed") continue;
+    if (now - job.createdAt <= JOB_TTL_MS) continue;
+    jobs.delete(id);
+    removeJobFiles(id);
+    removed += 1;
+  }
+  while (jobs.size > MAX_JOBS) {
+    const before = jobs.size;
+    evictOldestJob();
+    if (jobs.size === before) break;
+  }
+  return removed;
+}
+
+/**
+ * Remove directories under storage/temp that no live job owns. These accumulate
+ * whenever the process restarts, because the in-memory registry starts empty
+ * while the files on disk do not.
+ */
+export function purgeOrphanDirectories(): number {
+  let removed = 0;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(TEMP_ROOT, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || jobs.has(entry.name)) continue;
+    fs.rmSync(path.join(TEMP_ROOT, entry.name), { recursive: true, force: true });
+    removed += 1;
+  }
+  return removed;
+}
+
+let orphanSweepDone = false;
+
 export function createDownloadJob(
   input: string,
   urlInfo: InstagramUrlInfo,
   itemIndex?: number
 ): DownloadJob {
+  // Cheap, opportunistic housekeeping: no timers, so nothing is left running
+  // after the process goes away.
+  if (!orphanSweepDone) {
+    orphanSweepDone = true;
+    purgeOrphanDirectories();
+  }
+  purgeExpiredJobs();
+
   const job: DownloadJob = {
     id: randomUUID(),
     url: input,
@@ -200,9 +347,24 @@ function outputTemplateFor(dir: string, itemIndex?: number): string {
   return `${forwardDir}/${OUTPUT_TEMPLATE}${suffix}.%(ext)s`;
 }
 
-export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
+export function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
+  const queued = acquireRunSlot();
+  if (!queued) {
+    return runDownload(job).finally(releaseRunSlot);
+  }
+  return queued.then(() => runDownload(job)).finally(releaseRunSlot);
+}
+
+async function runDownload(job: DownloadJob): Promise<DownloadJob> {
   const dir = jobDir(job.id);
-  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (error) {
+    console.error("failed to create job directory:", error);
+    job.status = "failed";
+    job.error = "The server could not prepare temporary storage for this download.";
+    return job;
+  }
   job.status = "processing";
   job.progress = 0;
 
@@ -212,12 +374,19 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
     "--newline",
     "--no-warnings",
     "--no-colors",
+    "--max-filesize",
+    MAX_FILE_SIZE,
     ...cookieArgs(),
   ];
   if (job.itemIndex !== undefined) {
     args.push("--playlist-items", String(job.itemIndex));
+  } else {
+    // A profile link resolves to a whole playlist; without a cap one request
+    // would try to fetch every post the account has ever posted.
+    args.push("--playlist-end", String(MAX_BULK_ITEMS));
   }
   args.push(job.url);
+
   const proc = spawnYtDlp(args);
 
   return new Promise((resolve) => {
@@ -227,6 +396,24 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
       resolve(job);
       return;
     }
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      proc.kill();
+      job.status = "failed";
+      job.error = TIMEOUT_MESSAGES.download;
+      resolve(job);
+    }, DOWNLOAD_TIMEOUT_MS);
+
+    const settle = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      action();
+    };
+
     proc.stderr.on("data", (chunk: Buffer) => {
       // Stderr can contain session material and absolute paths, so it is kept
       // out of `error` (which the API returns) and redacted for server logs.
@@ -239,25 +426,31 @@ export async function startDownloadJob(job: DownloadJob): Promise<DownloadJob> {
       }
     });
     proc.on("error", (err) => {
-      job.status = "failed";
       job.error = STARTUP_HINT;
       job.diagnostics = appendDiagnostics(job.diagnostics, err.message);
       console.error("yt-dlp spawn failed:", job.diagnostics);
-      resolve(job);
+      settle(() => {
+        job.status = "failed";
+        resolve(job);
+      });
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        job.status = "failed";
         job.error = mapYtDlpError(job.diagnostics ?? "", { hasCookies: hasCookieSession() });
         console.error("yt-dlp download failed:", job.diagnostics);
-        resolve(job);
+        settle(() => {
+          job.status = "failed";
+          resolve(job);
+        });
         return;
       }
-      job.progress = 100;
-      job.files = finalizeDownloadedFiles(dir);
-      job.status = job.files.length > 0 ? "completed" : "failed";
-      if (job.status === "failed") job.error = "No files were produced by the download.";
-      resolve(job);
+      settle(() => {
+        job.progress = 100;
+        job.files = finalizeDownloadedFiles(dir);
+        job.status = job.files.length > 0 ? "completed" : "failed";
+        if (job.status === "failed") job.error = "No files were produced by the download.";
+        resolve(job);
+      });
     });
   });
 }
