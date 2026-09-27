@@ -111,14 +111,82 @@ describe("finalizeDownloadedFiles", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-finalize-"));
     try {
       fs.writeFileSync(path.join(dir, "Video by todoytoo [C59fbW7PFZn].mp4"), "data");
-      fs.mkdirSync(path.join(dir, "sub"));
-      fs.writeFileSync(path.join(dir, "sub", "thumb photo.jpg"), "img");
       const files = finalizeDownloadedFiles(dir);
-      expect(files).toContain("Video_by_todoytoo__C59fbW7PFZn_.mp4");
-      expect(files).toContain("sub/thumb_photo.jpg");
+      expect(files).toEqual(["Video_by_todoytoo__C59fbW7PFZn_.mp4"]);
       expect(
         fs.existsSync(path.join(dir, "Video_by_todoytoo__C59fbW7PFZn_.mp4"))
       ).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A title containing a separator makes yt-dlp write a subdirectory, and the
+  // download route only serves flat names, so nested output has to be lifted
+  // back into the job directory.
+  it("flattens a nested file into the job directory and drops the empty folder", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-nested-"));
+    try {
+      fs.mkdirSync(path.join(dir, "artist", "song"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "artist", "song", "track one.mp4"), "audio");
+
+      const files = finalizeDownloadedFiles(dir);
+
+      expect(files).toEqual(["track_one.mp4"]);
+      expect(fs.existsSync(path.join(dir, "track_one.mp4"))).toBe(true);
+      expect(fs.existsSync(path.join(dir, "artist"))).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Two distinct raw names can sanitize to the same name, and renaming them
+  // onto each other silently dropped one of the user's files.
+  it("keeps both files when two raw names sanitize to the same name", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-collide-"));
+    try {
+      fs.writeFileSync(path.join(dir, "my clip.mp4"), "first");
+      fs.writeFileSync(path.join(dir, "my#clip.mp4"), "second");
+
+      const files = finalizeDownloadedFiles(dir).sort();
+
+      expect(files).toEqual(["my_clip-1.mp4", "my_clip.mp4"]);
+      expect(fs.readFileSync(path.join(dir, "my_clip.mp4"), "utf8")).toBe("first");
+      expect(fs.readFileSync(path.join(dir, "my_clip-1.mp4"), "utf8")).toBe("second");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps same-named files that came from different subdirectories", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-collide-2-"));
+    try {
+      fs.mkdirSync(path.join(dir, "a"), { recursive: true });
+      fs.mkdirSync(path.join(dir, "b"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "a", "reel.mp4"), "one");
+      fs.writeFileSync(path.join(dir, "b", "reel.mp4"), "two");
+
+      const files = finalizeDownloadedFiles(dir).sort();
+
+      expect(files).toEqual(["reel-1.mp4", "reel.mp4"]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("gives up after a collision search limit instead of looping forever", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipvid-collide-3-"));
+    try {
+      fs.writeFileSync(path.join(dir, "clip.mp4"), "zero");
+      // Occupy the first many candidate names so the search has to give up.
+      for (let i = 0; i < 400; i += 1) {
+        fs.writeFileSync(path.join(dir, `clip-${i}.mp4`), String(i));
+      }
+
+      const files = finalizeDownloadedFiles(dir);
+
+      expect(files).toHaveLength(401);
+      expect(files).toContain("clip.mp4");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

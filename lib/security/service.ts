@@ -113,4 +113,11 @@ export const rateLimiters = {
 
   /** Instagram download - stricter limits */
   instagramDownload: new RateLimiter(5, 60000), // 5 downloads per minute,
+
+  /**
+   * Served output files. Higher than the download limit because the client
+   * polls a job and then fetches every file it produced, but bounded because
+   * this route reads from disk.
+   */
+  instagramFile: new RateLimiter(30, 60000), // 30 files per minute,
 };

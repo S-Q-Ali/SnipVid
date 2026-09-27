@@ -459,16 +459,69 @@ export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+/** How many `-N` variants to try before giving a colliding file its raw name. */
+const MAX_COLLISION_SUFFIX = 400;
+
+/**
+ * Move every produced file into the job directory root under a name that
+ * cannot collide with one already taken.
+ *
+ * Two things make the naive rename wrong. A title containing a separator makes
+ * yt-dlp write a subdirectory, and the download route only serves flat names.
+ * And two different raw names can sanitize to the same one, which used to
+ * rename one file onto the other and silently drop it.
+ */
 export function finalizeDownloadedFiles(dir: string): string[] {
-  const raw = listFiles(dir);
-  for (const rel of raw) {
-    const dirPart = path.dirname(rel);
-    const base = sanitizeFilename(path.basename(rel));
+  const claimed = new Set<string>();
+  const claimedPaths: string[] = [];
+
+  for (const rel of listFiles(dir)) {
     const from = path.join(dir, rel);
-    const to = path.join(dir, dirPart === "." ? base : path.join(dirPart, base));
-    if (from !== to && fs.existsSync(from)) fs.renameSync(from, to);
+    const base = sanitizeFilename(path.basename(rel));
+    let target = uniqueName(base, claimed);
+    if (fs.existsSync(path.join(dir, target))) target = uniqueName(base, claimed);
+    fs.renameSync(from, path.join(dir, target));
+    claimed.add(target);
+    claimedPaths.push(target);
   }
+
+  removeEmptyDirectories(dir);
   return listFiles(dir);
+}
+
+/** Append `-1`, `-2`, ... before the extension until the name is free. */
+function uniqueName(base: string, claimed: Set<string>): string {
+  if (!claimed.has(base)) return base;
+
+  const ext = path.extname(base);
+  const stem = base.slice(0, base.length - ext.length);
+  for (let n = 1; n <= MAX_COLLISION_SUFFIX; n += 1) {
+    const candidate = `${stem}-${n}${ext}`;
+    if (!claimed.has(candidate)) return candidate;
+  }
+  return base;
+}
+
+/** Delete the directories a flatten emptied out, keeping the job root. */
+function removeEmptyDirectories(dir: string): void {
+  // Deepest first: a parent is only empty once its children are gone.
+  const directories = listDirectories(dir).sort(
+    (a, b) => b.split("/").length - a.split("/").length
+  );
+  for (const rel of directories) {
+    const full = path.join(dir, rel);
+    if (fs.readdirSync(full).length === 0) fs.rmdirSync(full);
+  }
+}
+
+function listDirectories(dir: string, prefix = ""): string[] {
+  const found: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    found.push(relative, ...listDirectories(path.join(dir, entry.name), relative));
+  }
+  return found;
 }
 
 function listFiles(dir: string, prefix: string = ""): string[] {

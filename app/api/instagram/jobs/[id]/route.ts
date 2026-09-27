@@ -1,9 +1,8 @@
 import { getDownloadJob } from "@/lib/instagram/service";
 import { isInstagramEnabled, jsonResponse } from "@/lib/instagram/http";
+import { isJobId } from "@/lib/security/identifiers";
 
 export const runtime = "nodejs";
-
-const JOB_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 function downloadUrl(jobId: string, name: string): string {
   const safe = name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -19,7 +18,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  if (!JOB_ID_PATTERN.test(id)) {
+  if (!isJobId(id)) {
     return jsonResponse({ error: "Invalid job ID." }, 400);
   }
 
