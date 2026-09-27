@@ -34,6 +34,7 @@ All configuration is server-side. Nothing here is read from a request.
 | --- | --- | --- |
 | `YTDLP_PATH` | `yt-dlp` | Path to the yt-dlp binary. |
 | `INSTAGRAM_ENABLED` | `true` | Set to `false` to return 503 from every Instagram endpoint. |
+| `STORAGE_TEMP_DIR` | `./storage/temp` | Where produced media is written. Point this at a private, writable path in production. |
 | `TRUST_PROXY` | `false` | Set to `true` only when a proxy in front of the app overwrites `x-forwarded-for`. See below. |
 | `INSTAGRAM_COOKIES_FILE` | unset | Path to a Netscape-format cookies file, used as an authenticated session. |
 
@@ -82,8 +83,9 @@ These are deliberate, and the values live in `lib/instagram/service.ts`:
 - **60s** for an analysis, **15 minutes** for a download. Both kill the child
   process on expiry.
 - **200** tracked jobs, each removed with its files an hour after it finishes.
-  Directories left behind by a previous process are swept on startup of the next
-  job.
+  Directories left behind by a previous process are collected once the first
+  job is created, but only once they are older than that hour — a directory
+  another instance is still writing to is left alone.
 - Rate limits: 10 analyses and 5 job creations per minute, 30 file fetches per
   minute, per client address.
 
@@ -110,7 +112,8 @@ headers, and deliberately does not contact Instagram.
   available while this was built, so the session path is covered by unit tests
   and a health check, not a real download.
 - **Rate limits are per process.** A multi-instance deployment needs a shared
-  store such as Redis.
+  store such as Redis. `STORAGE_TEMP_DIR` must also be private to one instance,
+  because cleanup is driven by an in-memory registry.
 - **No HTTP range requests.** Produced files are served as a single attachment;
   seeking inside a video in the browser is not supported.
 - **Stories and highlights are not implemented.** They are the remaining work

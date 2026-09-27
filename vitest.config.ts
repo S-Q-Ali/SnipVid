@@ -11,6 +11,8 @@ export default defineConfig({
     environment: "node",
     css: false,
     passWithNoTests: true,
+    // Runs before each test file's imports, so the service module reads it.
+    setupFiles: ["./test/temp-root-setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

@@ -115,7 +115,10 @@ describe("startDownloadJob (spawn safety)", () => {
     expect(urlIndex).toBeGreaterThan(0);
     const outputIndex = call.args.indexOf("-o");
     expect(outputIndex).toBeGreaterThanOrEqual(0);
-    expect(call.args[outputIndex + 1]).toContain("storage/temp");
+    // The output template uses forward slashes, so compare normalised paths.
+    expect(call.args[outputIndex + 1].replace(/\\/g, "/")).toContain(
+      TEMP_ROOT.replace(/\\/g, "/")
+    );
     expect(call.args[outputIndex + 1]).not.toContain(job.url);
 
     call.child.stdout.emit("data", Buffer.from("[download]  42.3% of 12.5MiB at 1.2MiB/s\n"));
@@ -518,14 +521,40 @@ describe("job retention", () => {
     const orphan = path.join(TEMP_ROOT, "orphaned-job-directory");
     fs.mkdirSync(orphan, { recursive: true });
     fs.writeFileSync(path.join(orphan, "reel.mp4"), "data");
-    const live = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
-    fs.mkdirSync(path.join(TEMP_ROOT, live.id), { recursive: true });
 
-    const removed = purgeOrphanDirectories();
+    // Pretend the clock has moved past the retention window rather than
+    // backdating the directory: test files share storage/temp with other
+    // workers, and a rewritten mtime would make this fixture collectable by
+    // their sweeps too.
+    const removed = purgeOrphanDirectories(Date.now() + 2 * JOB_TTL_MS);
 
     expect(removed).toBeGreaterThanOrEqual(1);
     expect(fs.existsSync(orphan)).toBe(false);
-    expect(fs.existsSync(path.join(TEMP_ROOT, live.id))).toBe(true);
+  });
+
+  it("leaves a fresh directory that this process does not own alone", () => {
+    // Another process, or another test worker, may be writing here right now.
+    // Age decides, not whether the in-memory registry happens to know about it.
+    const fresh = path.join(TEMP_ROOT, "someone-elses-job");
+    fs.mkdirSync(fresh, { recursive: true });
+    fs.writeFileSync(path.join(fresh, "reel.mp4"), "data");
+
+    try {
+      purgeOrphanDirectories();
+      expect(fs.existsSync(fresh)).toBe(true);
+    } finally {
+      fs.rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves a directory a live job owns alone even when it is old", () => {
+    const live = newJob("https://www.instagram.com/reel/CxYz123AbcD/");
+    const dir = path.join(TEMP_ROOT, live.id);
+    fs.mkdirSync(dir, { recursive: true });
+
+    purgeOrphanDirectories(Date.now() + 2 * JOB_TTL_MS);
+
+    expect(fs.existsSync(dir)).toBe(true);
   });
 });
 
@@ -565,7 +594,7 @@ describe("job registry", () => {
     const promise = downloadInstagramUrl(url, classifyInstagramUrl(url));
     const call = spawned[0];
     const template = call.args[call.args.indexOf("-o") + 1];
-    const id = template.match(/temp\/([0-9a-f-]{36})\//)?.[1];
+    const id = template.match(/([0-9a-f]{8}-[0-9a-f-]{27})[\\/]/)?.[1];
     expect(id).toBeTruthy();
     createdJobIds.push(id as string);
     fs.writeFileSync(path.join(TEMP_ROOT, id as string, "reel.mp4"), "data");

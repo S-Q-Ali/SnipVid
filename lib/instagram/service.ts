@@ -18,7 +18,18 @@ export class YtDlpError extends Error {
   }
 }
 
-export const TEMP_ROOT = path.join(process.cwd(), "storage", "temp");
+/**
+ * Where produced media is written and served from.
+ *
+ * Overridable because the default lands inside the project directory, which is
+ * not writable on every host, and because tests need a directory that is not
+ * shared with any other process.
+ */
+export const TEMP_ROOT = (() => {
+  const configured = (process.env.STORAGE_TEMP_DIR ?? "").trim();
+  if (configured) return path.resolve(configured);
+  return path.join(process.cwd(), "storage", "temp");
+})();
 
 export function jobDir(jobId: string): string {
   return path.join(TEMP_ROOT, jobId);
@@ -290,11 +301,20 @@ export function purgeExpiredJobs(now: number = Date.now()): number {
 }
 
 /**
- * Remove directories under storage/temp that no live job owns. These accumulate
- * whenever the process restarts, because the in-memory registry starts empty
- * while the files on disk do not.
+ * Remove directories under storage/temp that are old and that no live job owns.
+ *
+ * These accumulate whenever the process restarts, because the in-memory registry
+ * starts empty while the files on disk do not.
+ *
+ * Age is the primary test, not registry membership. The registry is per
+ * process while the directory is shared, so a membership sweep would delete
+ * another instance's in-flight downloads the moment this process created its
+ * first job. Anything touched within the retention window is assumed live.
+ *
+ * `now` is a parameter so callers, and tests, can reason about the window
+ * without rewriting timestamps on shared disk.
  */
-export function purgeOrphanDirectories(): number {
+export function purgeOrphanDirectories(now: number = Date.now()): number {
   let removed = 0;
   let entries: fs.Dirent[];
   try {
@@ -302,9 +322,16 @@ export function purgeOrphanDirectories(): number {
   } catch {
     return 0;
   }
+  const staleBefore = now - JOB_TTL_MS;
   for (const entry of entries) {
     if (!entry.isDirectory() || jobs.has(entry.name)) continue;
-    fs.rmSync(path.join(TEMP_ROOT, entry.name), { recursive: true, force: true });
+    const full = path.join(TEMP_ROOT, entry.name);
+    try {
+      if (fs.statSync(full).mtimeMs > staleBefore) continue;
+    } catch {
+      continue;
+    }
+    fs.rmSync(full, { recursive: true, force: true });
     removed += 1;
   }
   return removed;

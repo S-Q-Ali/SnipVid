@@ -1,11 +1,14 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import fs from "fs";
 import path from "path";
-import { TEMP_ROOT } from "@/lib/instagram/service";
+import { TEMP_ROOT, createDownloadJob } from "@/lib/instagram/service";
 import { rateLimiters } from "@/lib/security/service";
 import { GET } from "../route";
 
-const jobId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+/** A well formed UUID that no job owns, for the requests that must not touch disk. */
+const UNKNOWN_UUID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+let jobId = UNKNOWN_UUID;
 
 // Each test gets its own forwarded client so the shared rate-limit buckets
 // cannot leak between cases; the rate-limit test opts into a fixed address.
@@ -29,6 +32,16 @@ describe("GET /api/download/[jobId]/[filename]", () => {
     // Distinct forwarded clients per test keep the shared rate-limit buckets
     // from leaking between cases.
     vi.stubEnv("TRUST_PROXY", "true");
+
+    // Register a real job rather than inventing a directory. The service
+    // sweeps storage/temp for directories no live job owns, and other test
+    // files create jobs, so an unregistered fixture directory gets deleted out
+    // from under a streaming read.
+    jobId = createDownloadJob("https://www.instagram.com/reel/CxYz123AbcD/", {
+      kind: "reel",
+      shortcode: "CxYz123AbcD",
+      canonicalUrl: "https://www.instagram.com/reel/CxYz123AbcD/",
+    }).id;
   });
 
   afterEach(() => {
