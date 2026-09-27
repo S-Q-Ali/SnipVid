@@ -16,15 +16,42 @@ interface RateLimitRecord {
   lastRequest: Date;
 }
 
-/** Rate limiter using in-memory store (use Redis in production) */
+/** Rate limiter using an in-memory store (use Redis in production) */
 export class RateLimiter {
   private limits: Map<string, RateLimitRecord> = new Map();
-  private maxRequests: number;
-  private timeWindow: number; // in milliseconds
+  readonly maxRequests: number;
+  readonly timeWindow: number; // in milliseconds
+  readonly maxBuckets: number;
 
-  constructor(maxRequests: number = 10, timeWindow: number = 60000) {
+  constructor(maxRequests: number = 10, timeWindow: number = 60000, maxBuckets: number = 10_000) {
     this.maxRequests = maxRequests;
     this.timeWindow = timeWindow;
+    this.maxBuckets = maxBuckets;
+  }
+
+  /** Number of rate-limit buckets currently held in memory */
+  get size(): number {
+    return this.limits.size;
+  }
+
+  /**
+   * Start a fresh window for a key and keep the bucket count bounded.
+   *
+   * Keys are derived from client-supplied data, so without a cap an attacker
+   * could grow this map without limit simply by varying the key.
+   */
+  private track(key: string, now: Date): void {
+    this.limits.set(key, {
+      key,
+      count: 1,
+      firstRequest: now,
+      lastRequest: now,
+    });
+    while (this.limits.size > this.maxBuckets) {
+      const oldest = this.limits.keys().next();
+      if (oldest.done) break;
+      this.limits.delete(oldest.value);
+    }
   }
 
   /** Check if request is allowed */
@@ -38,12 +65,7 @@ export class RateLimiter {
 
     if (!record) {
       // First request from this key
-      this.limits.set(key, {
-        key,
-        count: 1,
-        firstRequest: now,
-        lastRequest: now,
-      });
+      this.track(key, now);
       return {
         allowed: true,
         remaining: this.maxRequests - 1,
@@ -54,12 +76,7 @@ export class RateLimiter {
     // Check if outside time window
     if (now.getTime() - record.firstRequest.getTime() > this.timeWindow) {
       // Reset the counter
-      this.limits.set(key, {
-        key,
-        count: 1,
-        firstRequest: now,
-        lastRequest: now,
-      });
+      this.track(key, now);
       return {
         allowed: true,
         remaining: this.maxRequests - 1,

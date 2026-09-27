@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { YtDlpError } from "@/lib/instagram/service";
 
 vi.mock("@/lib/instagram/service", async (importOriginal) => {
@@ -21,6 +21,12 @@ function post(body: unknown, ip = "10.0.1.1") {
 }
 
 describe("POST /api/instagram/analyze", () => {
+  beforeEach(() => {
+    // These tests impersonate distinct clients through a trusted proxy, so the
+    // per-client rate-limit buckets below resolve to the forwarded address.
+    vi.stubEnv("TRUST_PROXY", "true");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.mocked(analyzeFromInput).mockReset();

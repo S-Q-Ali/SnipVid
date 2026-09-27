@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 vi.mock("@/lib/instagram/service", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/instagram/service")>();
@@ -21,6 +21,12 @@ function post(body: unknown, ip = "10.0.2.1") {
 }
 
 describe("POST /api/instagram/download", () => {
+  beforeEach(() => {
+    // These tests impersonate distinct clients through a trusted proxy, so the
+    // per-client rate-limit buckets below resolve to the forwarded address.
+    vi.stubEnv("TRUST_PROXY", "true");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.mocked(createDownloadJob).mockReset();
