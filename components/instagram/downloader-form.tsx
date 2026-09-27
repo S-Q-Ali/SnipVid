@@ -30,6 +30,8 @@ interface AnalyzeResult {
   duration?: number;
   isCarousel: boolean;
   media: MediaItem[];
+  /** How many items the source really has, when the server capped the list. */
+  totalItems?: number;
 }
 
 interface JobFile {
@@ -87,6 +89,12 @@ export function InstagramDownloaderForm() {
   const [startingIndex, setStartingIndex] = useState<number | "all" | null>(null);
   const [downloadError, setDownloadError] = useState("");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // The server caps how many items it will report for a large account, so say
+  // so rather than quietly presenting a truncated list as the whole post.
+  const truncated = Boolean(
+    result?.totalItems && result.totalItems > result.media.length
+  );
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) {
@@ -262,6 +270,12 @@ export function InstagramDownloaderForm() {
               <h2 className="text-base font-semibold line-clamp-2">{result.title}</h2>
               {result.uploader && (
                 <p className="text-sm text-muted-foreground mt-1">@{result.uploader}</p>
+              )}
+              {truncated && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Showing the first {result.media.length} of {result.totalItems} items. Download
+                  individual items below, or use the bulk download to fetch up to 50 at a time.
+                </p>
               )}
             </div>
           </div>
