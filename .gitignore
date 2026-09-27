@@ -70,7 +70,7 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# generic tool scratch dirs (also used by the retired Replit workflow)
 .cache/
 .local/
 
