@@ -93,6 +93,17 @@ describe("mapYtDlpError", () => {
       mapYtDlpError("ERROR: [instagram] CxYz123AbcD: The requested URL is not available")
     ).toMatch(/unavailable|no longer available|deleted/i);
   });
+
+  it("treats an empty media response as a login wall, not a missing post", () => {
+    // Instagram returns this when it refuses to serve content to an anonymous
+    // client. Reporting it as a deleted post sends the user looking for a
+    // problem with their link that does not exist.
+    expect(
+      mapYtDlpError(
+        "ERROR: [instagram] CxYz123AbcD: Instagram sent an empty media response"
+      )
+    ).toMatch(/not accessible anonymously|requires a login/i);
+  });
 });
 
 describe("sanitizeFilename", () => {

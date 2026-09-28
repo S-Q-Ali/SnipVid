@@ -90,7 +90,7 @@ function appendDiagnostics(existing: string | undefined, chunk: string): string 
 const STARTUP_HINT = "yt-dlp could not be started. Install yt-dlp or set YTDLP_PATH.";
 
 const LOGIN_WALL_PATTERN =
-  /login_?required|sign in|log in|login to|authentication|unable to extract data|empty media response|empty response/i;
+  /login_?required|sign in|log in|login to|authentication|unable to extract data|empty media response|empty response|checking post accessibility/i;
 
 function sessionRequiredMessage(hasCookies: boolean): string {
   if (hasCookies) {
