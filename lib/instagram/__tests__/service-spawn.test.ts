@@ -102,6 +102,25 @@ describe("startDownloadJob (spawn safety)", () => {
     cleanupCreatedJobs();
   });
 
+  it("asks for an iOS-compatible format so the file plays on an iPhone", async () => {
+    const job = makeJob();
+    const promise = startDownloadJob(job);
+
+    const call = spawned[0];
+    const args = call.args.join(" ");
+
+    // iOS Safari only plays H.264 + AAC in MP4. Without an explicit format
+    // selection yt-dlp picks "best", which for Instagram is often H.265 or a
+    // VP9/WebM stream, and the user gets audio with no video.
+    expect(args).toContain("--format");
+    expect(args).toContain("--merge-output-format");
+    expect(args).toContain("mp4");
+
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "reel.mp4"), "data");
+    call.child.emit("close", 0);
+    await promise;
+  });
+
   it("spawns the binary with an argument array and shell:false", async () => {
     const job = makeJob();
     const promise = startDownloadJob(job);

@@ -403,6 +403,13 @@ async function runDownload(job: DownloadJob): Promise<DownloadJob> {
     "--no-colors",
     "--max-filesize",
     MAX_FILE_SIZE,
+    // iOS Safari only plays H.264 + AAC in MP4. Without this yt-dlp picks
+    // "best", which for Instagram is often H.265 or a VP9/WebM stream, and
+    // the user gets audio with no video on their phone.
+    "--format",
+    "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[vcodec^=avc1]/best",
+    "--merge-output-format",
+    "mp4",
     ...cookieArgs(),
   ];
   if (job.itemIndex !== undefined) {
