@@ -72,6 +72,9 @@ describe("GET /api/download/[jobId]/[filename]", () => {
 
     writeJobFile("sticker.gif", "GIF89a");
     expect((await get("sticker.gif")).headers.get("content-type")).toBe("image/gif");
+
+    writeJobFile("album.zip", "PK\x05\x06");
+    expect((await get("album.zip")).headers.get("content-type")).toBe("application/zip");
   });
 
   it("falls back to octet-stream for unknown extensions", async () => {

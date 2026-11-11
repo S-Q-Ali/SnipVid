@@ -83,6 +83,17 @@ function prettySeconds(total?: number): string {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+function triggerBrowserDownload(file: JobFile): void {
+  const link = document.createElement("a");
+  link.href = file.url;
+  link.download = file.name;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 export function InstagramDownloaderForm() {
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -95,6 +106,7 @@ export function InstagramDownloaderForm() {
   const [downloadError, setDownloadError] = useState("");
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const autoDownloadedJobRef = useRef<string | null>(null);
 
   const truncated = Boolean(
     result?.totalItems && result.totalItems > result.media.length
@@ -109,11 +121,23 @@ export function InstagramDownloaderForm() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  useEffect(() => {
+    if (
+      job?.status === "completed" &&
+      job.files.length > 0 &&
+      autoDownloadedJobRef.current !== job.id
+    ) {
+      autoDownloadedJobRef.current = job.id;
+      triggerBrowserDownload(job.files[0]);
+    }
+  }, [job]);
+
   const running =
     analyzing || downloading || job?.status === "pending" || job?.status === "processing";
 
   const handleReset = useCallback(() => {
     stopPolling();
+    autoDownloadedJobRef.current = null;
     setUrl("");
     setAnalyzeError("");
     setDownloadError("");
@@ -179,6 +203,7 @@ export function InstagramDownloaderForm() {
       const trimmed = url.trim();
       if (!trimmed) return;
       stopPolling();
+      autoDownloadedJobRef.current = null;
       setDownloading(true);
       setStartingIndex(itemIndex ?? "all");
       setDownloadError("");
@@ -428,7 +453,7 @@ export function InstagramDownloaderForm() {
                   <span>
                     {downloading && startingIndex === "all"
                       ? "Starting…"
-                      : `Download all ${result.media.length} items`}
+                      : `Download all ${result.media.length} items (.zip)`}
                   </span>
                 </button>
               </>
@@ -462,7 +487,7 @@ export function InstagramDownloaderForm() {
               {job.status === "completed" ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span>Ready to save</span>
+                  <span>Download started</span>
                 </>
               ) : job.status === "failed" ? (
                 <>
@@ -498,6 +523,10 @@ export function InstagramDownloaderForm() {
 
           {job.status === "completed" && job.files.length > 0 && (
             <div className="mt-3 flex flex-col gap-3">
+              <p className="text-xs text-muted-foreground">
+                Your download started automatically. If your browser blocked it, click the button
+                below to save manually.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {job.files.map((file) => (
                   <a

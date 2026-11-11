@@ -265,7 +265,7 @@ describe("startDownloadJob (spawn safety)", () => {
     expect(finished.files).toEqual(["photo__BsOGulcndj-_.jpg"]);
   });
 
-  it("drops redundant video thumbnails while keeping standalone photos in mixed carousels", async () => {
+  it("drops redundant video thumbnails while keeping standalone photos in mixed carousels inside the zip", async () => {
     const url = "https://www.instagram.com/p/CxYz123AbcD/";
     const job = newJob(url);
     fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
@@ -278,7 +278,50 @@ describe("startDownloadJob (spawn safety)", () => {
 
     const finished = await promise;
     expect(finished.status).toBe("completed");
-    expect(finished.files.sort()).toEqual(["clip1.mp4", "photo2.jpg"]);
+    expect(finished.files).toEqual(["SnipVid_CxYz123AbcD.zip"]);
+
+    const dirFiles = fs.readdirSync(path.join(TEMP_ROOT, job.id));
+    expect(dirFiles).toEqual(["SnipVid_CxYz123AbcD.zip"]);
+
+    const zipBytes = fs.readFileSync(path.join(TEMP_ROOT, job.id, "SnipVid_CxYz123AbcD.zip"));
+    expect(zipBytes.includes(Buffer.from("clip1.mp4"))).toBe(true);
+    expect(zipBytes.includes(Buffer.from("photo2.jpg"))).toBe(true);
+    expect(zipBytes.includes(Buffer.from("clip1.jpg"))).toBe(false);
+    expect(zipBytes.includes(Buffer.from("thumbdata"))).toBe(false);
+  });
+
+  it("keeps a single file unwrapped when a specific carousel item is downloaded", async () => {
+    const url = "https://www.instagram.com/p/CxYz123AbcD/";
+    const job = newJob(url, 2);
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    const promise = startDownloadJob(job);
+
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "photo2.jpg"), "photodata");
+    spawned[0].child.emit("close", 0);
+
+    const finished = await promise;
+    expect(finished.status).toBe("completed");
+    expect(finished.files).toEqual(["photo2.jpg"]);
+  });
+
+  it("bundles multi-photo carousels into a single zip archive for Download all", async () => {
+    const url = "https://www.instagram.com/p/BsOGulcndj-/";
+    const job = newJob(url);
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    const promise = startDownloadJob(job);
+
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "01.jpg"), "img-one");
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "02.jpg"), "img-two");
+    spawned[0].child.stderr.emit("data", Buffer.from("ERROR: No video formats found!\n"));
+    spawned[0].child.emit("close", 1);
+
+    const finished = await promise;
+    expect(finished.status).toBe("completed");
+    expect(finished.files).toEqual(["SnipVid_BsOGulcndj-.zip"]);
+
+    const zipBytes = fs.readFileSync(path.join(TEMP_ROOT, job.id, "SnipVid_BsOGulcndj-.zip"));
+    expect(zipBytes.includes(Buffer.from("img-one"))).toBe(true);
+    expect(zipBytes.includes(Buffer.from("img-two"))).toBe(true);
   });
 });
 

@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 
 import { classifyInstagramUrl, type InstagramUrlInfo } from "./url";
 import { cookieArgs, hasCookieSession, redactSecrets } from "./cookies";
+import { createZipArchive } from "./zip";
 import type {
   DownloadJob,
   InstagramAnalyzeResult,
@@ -503,12 +504,22 @@ async function runDownload(job: DownloadJob): Promise<DownloadJob> {
       pruneRedundantThumbnails(dir);
       const files = finalizeDownloadedFiles(dir);
       if (files.length > 0 && (code === 0 || NO_VIDEO_FORMAT_PATTERN.test(job.diagnostics ?? ""))) {
-        settle(() => {
-          job.progress = 100;
-          job.files = files;
-          job.status = "completed";
-          resolve(job);
-        });
+        try {
+          const outputFiles = bundleBulkFilesIfNeeded(dir, job, files);
+          settle(() => {
+            job.progress = 100;
+            job.files = outputFiles;
+            job.status = "completed";
+            resolve(job);
+          });
+        } catch (error) {
+          console.error("failed to package bulk archive:", error);
+          settle(() => {
+            job.status = "failed";
+            job.error = "The server could not bundle the downloaded files into a ZIP archive.";
+            resolve(job);
+          });
+        }
         return;
       }
       if (code !== 0) {
@@ -560,6 +571,26 @@ function pruneRedundantThumbnails(dir: string): void {
       fs.rmSync(path.join(dir, rel), { force: true });
     }
   }
+}
+
+function buildBulkZipFilename(job: DownloadJob): string {
+  const info = classifyInstagramUrl(job.url);
+  const label = info.shortcode || info.username || "download";
+  return sanitizeFilename(`SnipVid_${label}.zip`);
+}
+
+function bundleBulkFilesIfNeeded(dir: string, job: DownloadJob, files: string[]): string[] {
+  if (job.itemIndex !== undefined || files.length <= 1) {
+    return files;
+  }
+  const zipFilename = buildBulkZipFilename(job);
+  createZipArchive(dir, files, zipFilename);
+  for (const file of files) {
+    if (file !== zipFilename) {
+      fs.rmSync(path.join(dir, file), { force: true });
+    }
+  }
+  return [zipFilename];
 }
 
 export function sanitizeFilename(name: string): string {

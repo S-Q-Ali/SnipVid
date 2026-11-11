@@ -15,7 +15,7 @@ The app is a thin, honest wrapper around `yt-dlp` and `ffmpeg`. It does not atte
 
 - **Reels & Video Posts** (`/reel/...`, `/<user>/reel/...`, `/p/...`, `/tv/...`) — downloaded as iOS-compatible H.264 + AAC `.mp4` files.
 - **Photo Posts & Images** (`/p/...`, `/<user>/p/...`) — extracted cleanly as `.jpg` images.
-- **Carousels** — analyze multi-item posts (photos, videos, or mixed) and download individual items (`--playlist-items`) or all items (up to 50).
+- **Carousels** — analyze multi-item posts (photos, videos, or mixed) and download individual items (`--playlist-items`) or bundle all items (up to 50) into a single `.zip` archive with automatic download.
 - **100% Anonymous Default** — works without user logins or cookies for publicly accessible Instagram links.
 
 ## Requirements
@@ -70,7 +70,7 @@ All configuration is server-side. Nothing is accepted from a client request.
 | `POST /api/instagram/analyze` | Validates an Instagram URL against an allowlist and fetches metadata via `yt-dlp -J` (up to 50 items reported, alongside the real total). |
 | `POST /api/instagram/download` | Creates a download job and returns `202` immediately with a `jobId`. |
 | `GET /api/instagram/jobs/[id]` | Reports job status, progress, produced filenames, and friendly errors. |
-| `GET /api/download/[jobId]/[filename]` | Streams the downloaded `.mp4` or `.jpg` file as an attachment. |
+| `GET /api/download/[jobId]/[filename]` | Streams the downloaded `.mp4`, `.jpg`, or `.zip` file as an attachment. |
 | `GET /api/health` | Returns minimal readiness (`{ status, timestamp }`) publicly; returns detailed `checks` only when `HEALTH_SECRET` matches `x-health-token`. |
 
 ## Limits & Security

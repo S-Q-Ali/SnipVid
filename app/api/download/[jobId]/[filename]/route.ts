@@ -25,6 +25,7 @@ const MIME_TYPES: Record<string, string> = {
   ".webp": "image/webp",
   ".m4a": "audio/mp4",
   ".aac": "audio/aac",
+  ".zip": "application/zip",
 };
 
 /**

@@ -19,6 +19,7 @@ All notable changes to SnipVid are documented in this file.
 - Aligned unsupported-URL API errors across `/api/instagram/analyze` and `/api/instagram/download` with the supported feature scope.
 
 ### Added
+- Automatic `.zip` archive bundling (`lib/instagram/zip.ts`) when downloading multiple carousel items via **Download all** (`application/zip` support on `/api/download/[jobId]/[filename]`), plus automatic browser download start upon job completion without needing an extra click.
 - Full SEO foundation: `lib/site.ts` canonical configuration, OpenGraph & Twitter Card metadata, dynamic `opengraph-image.tsx`, SVG brand `icon.svg`, `manifest.ts`, `robots.ts` host/sitemap directives, and `WebApplication` + `FAQPage` JSON-LD structured data.
 - Polished UI/UX styling: mapped semantic theme CSS variables into `tailwind.config.ts`, refined WCAG AA+ color contrast, added `Plus Jakarta Sans` + `Inter` display/body typography, clipboard Paste and Clear buttons, broken-thumbnail fallback, accessible progressbar (`role="progressbar"`), How-it-works section, and interactive FAQ accordion.
 - Production GitHub documentation (`LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, and `.github` issue/PR templates).
