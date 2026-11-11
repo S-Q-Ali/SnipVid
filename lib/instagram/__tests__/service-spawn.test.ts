@@ -238,6 +238,48 @@ describe("startDownloadJob (spawn safety)", () => {
     expect(finished.status).toBe("failed");
     expect(finished.error).toBe("No files were produced by the download.");
   });
+
+  it("maps diagnostics when --ignore-errors exits 0 with no files", async () => {
+    const job = makeJob();
+    const promise = startDownloadJob(job);
+
+    spawned[0].child.stderr.emit("data", Buffer.from("ERROR: Instagram said: login_required\n"));
+    spawned[0].child.emit("close", 0);
+    const finished = await promise;
+    expect(finished.status).toBe("failed");
+    expect(finished.error).toContain("login");
+  });
+
+  it("completes photo-only posts when yt-dlp writes a JPG and exits with no-formats", async () => {
+    const url = "https://www.instagram.com/p/BsOGulcndj-/";
+    const job = newJob(url);
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    const promise = startDownloadJob(job);
+
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "photo [BsOGulcndj-].jpg"), "jpgdata");
+    spawned[0].child.stderr.emit("data", Buffer.from("ERROR: [Instagram] BsOGulcndj-: No video formats found!\n"));
+    spawned[0].child.emit("close", 1);
+
+    const finished = await promise;
+    expect(finished.status).toBe("completed");
+    expect(finished.files).toEqual(["photo__BsOGulcndj-_.jpg"]);
+  });
+
+  it("drops redundant video thumbnails while keeping standalone photos in mixed carousels", async () => {
+    const url = "https://www.instagram.com/p/CxYz123AbcD/";
+    const job = newJob(url);
+    fs.mkdirSync(path.join(TEMP_ROOT, job.id), { recursive: true });
+    const promise = startDownloadJob(job);
+
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "clip1.mp4"), "mp4data");
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "clip1.jpg"), "thumbdata");
+    fs.writeFileSync(path.join(TEMP_ROOT, job.id, "photo2.jpg"), "photodata");
+    spawned[0].child.emit("close", 0);
+
+    const finished = await promise;
+    expect(finished.status).toBe("completed");
+    expect(finished.files.sort()).toEqual(["clip1.mp4", "photo2.jpg"]);
+  });
 });
 
 describe("startDownloadJob (diagnostics hygiene)", () => {

@@ -98,6 +98,25 @@ describe("classifyInstagramUrl", () => {
     const info = classifyInstagramUrl("https://www.instagram.com/reel/CxYz123AbcD/");
     expect(info.canonicalUrl).toBe("https://www.instagram.com/reel/CxYz123AbcD/");
   });
+
+  it("classifies profile-prefixed reel and post URLs accurately", () => {
+    const reel = classifyInstagramUrl("https://www.instagram.com/realadamrose/reel/DfcjnYJzbOv/");
+    expect(reel.kind).toBe("reel");
+    expect(reel.mediaType).toBe("reel");
+    expect(reel.shortcode).toBe("DfcjnYJzbOv");
+    expect(reel.canonicalUrl).toBe("https://www.instagram.com/reel/DfcjnYJzbOv/");
+
+    const post = classifyInstagramUrl("https://www.instagram.com/natgeo/p/CxYz123AbcD/");
+    expect(post.kind).toBe("post");
+    expect(post.mediaType).toBe("post");
+    expect(post.shortcode).toBe("CxYz123AbcD");
+    expect(post.canonicalUrl).toBe("https://www.instagram.com/p/CxYz123AbcD/");
+  });
+
+  it("rejects bare /stories/ and non-http protocols", () => {
+    expect(classifyInstagramUrl("https://www.instagram.com/stories/").kind).toBe("unsupported");
+    expect(classifyInstagramUrl("ftp://www.instagram.com/p/CxYz123AbcD/").kind).toBe("unsupported");
+  });
 });
 
 describe("isInstagramUrl", () => {

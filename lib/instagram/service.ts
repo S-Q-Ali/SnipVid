@@ -242,7 +242,15 @@ function runJson(args: string[]): Promise<Record<string, unknown>> {
 }
 
 export async function analyzeInstagramUrl(urlInfo: InstagramUrlInfo): Promise<InstagramAnalyzeResult> {
-  const json = await runJson(["-J", "--no-warnings", ...cookieArgs(), urlInfo.canonicalUrl]);
+  // --ignore-no-formats-error allows yt-dlp -J to return metadata (and image
+  // thumbnails) for photo-only posts instead of failing with "no video in post".
+  const json = await runJson([
+    "-J",
+    "--ignore-no-formats-error",
+    "--no-warnings",
+    ...cookieArgs(),
+    urlInfo.canonicalUrl,
+  ]);
   return parseMetadata(json, urlInfo);
 }
 
@@ -410,6 +418,13 @@ async function runDownload(job: DownloadJob): Promise<DownloadJob> {
     "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[vcodec^=avc1]/best",
     "--merge-output-format",
     "mp4",
+    // Allow photo posts and photo carousel items to emit thumbnails as JPGs
+    // while continuing across mixed video+photo carousels.
+    "--ignore-no-formats-error",
+    "--ignore-errors",
+    "--write-thumbnail",
+    "--convert-thumbnails",
+    "jpg",
     ...cookieArgs(),
   ];
   if (job.itemIndex !== undefined) {
@@ -469,6 +484,17 @@ async function runDownload(job: DownloadJob): Promise<DownloadJob> {
       });
     });
     proc.on("close", (code) => {
+      pruneRedundantThumbnails(dir);
+      const files = finalizeDownloadedFiles(dir);
+      if (files.length > 0 && (code === 0 || NO_VIDEO_FORMAT_PATTERN.test(job.diagnostics ?? ""))) {
+        settle(() => {
+          job.progress = 100;
+          job.files = files;
+          job.status = "completed";
+          resolve(job);
+        });
+        return;
+      }
       if (code !== 0) {
         job.error = mapYtDlpError(job.diagnostics ?? "", { hasCookies: hasCookieSession() });
         console.error("yt-dlp download failed:", job.diagnostics);
@@ -480,13 +506,44 @@ async function runDownload(job: DownloadJob): Promise<DownloadJob> {
       }
       settle(() => {
         job.progress = 100;
-        job.files = finalizeDownloadedFiles(dir);
-        job.status = job.files.length > 0 ? "completed" : "failed";
-        if (job.status === "failed") job.error = "No files were produced by the download.";
+        job.files = files;
+        job.status = "failed";
+        job.error = job.diagnostics
+          ? mapYtDlpError(job.diagnostics, { hasCookies: hasCookieSession() })
+          : "No files were produced by the download.";
         resolve(job);
       });
     });
   });
+}
+
+const NO_VIDEO_FORMAT_PATTERN = /no video in this post|no video formats found/i;
+const VIDEO_EXTENSIONS = new Set([".mp4", ".m4v", ".mov", ".webm", ".mkv"]);
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+
+/**
+ * yt-dlp emits a thumbnail alongside every video when `--write-thumbnail` is
+ * enabled for photo support. Remove any image whose stem matches a downloaded
+ * video so video downloads only return the video file, while photo-only items
+ * keep their image.
+ */
+function pruneRedundantThumbnails(dir: string): void {
+  const files = listFiles(dir);
+  const videoStems = new Set<string>();
+  for (const rel of files) {
+    const ext = path.extname(rel).toLowerCase();
+    if (VIDEO_EXTENSIONS.has(ext)) {
+      videoStems.add(rel.slice(0, rel.length - ext.length));
+    }
+  }
+  for (const rel of files) {
+    const ext = path.extname(rel).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(ext)) continue;
+    const stem = rel.slice(0, rel.length - ext.length);
+    if (videoStems.has(stem)) {
+      fs.rmSync(path.join(dir, rel), { force: true });
+    }
+  }
 }
 
 export function sanitizeFilename(name: string): string {

@@ -63,10 +63,10 @@ function cleanError(body: unknown, isAnalyze = false): string {
       : "";
   if (!raw) return "Something went wrong. Please try again.";
   if (isAnalyze && /Only Instagram/i.test(raw)) {
-    return "Only Instagram post, reel, story, highlight, and profile links are supported.";
+    return "Please paste a valid Instagram link (public posts, reels, photos, and carousels).";
   }
   if (isAnalyze && /anonymous|login|disabled/i.test(raw)) {
-    return "This content is not accessible anonymously. Only public posts, reels, stories, and photos can be downloaded.";
+    return "This content is not accessible anonymously. Instagram requires login for private posts, stories, highlights, and some public links.";
   }
   return raw;
 }
@@ -206,7 +206,7 @@ export function InstagramDownloaderForm() {
             id="instagram-url"
             type="url"
             inputMode="url"
-            placeholder="Paste an Instagram post, reel, story, highlight, or profile link"
+            placeholder="Paste a public Instagram post, reel, photo, or carousel link"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"

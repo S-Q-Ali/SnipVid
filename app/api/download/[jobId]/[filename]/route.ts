@@ -19,6 +19,10 @@ const MIME_TYPES: Record<string, string> = {
   ".mp3": "audio/mpeg",
   ".wav": "audio/wav",
   ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".m4a": "audio/mp4",
   ".aac": "audio/aac",
 };

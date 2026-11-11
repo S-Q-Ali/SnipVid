@@ -5,23 +5,23 @@ import { InstagramDownloaderForm } from "@/components/instagram/downloader-form"
 
 const FEATURES = [
   {
-    title: "Posts & Photos",
-    description: "Save any public post or photo, including carousels with all their items.",
-    icon: ImageIcon,
+    title: "Posts & Carousels",
+    description: "Save public posts and multi-item carousels — individual items or all at once.",
+    icon: FolderDown,
   },
   {
     title: "Reels & Videos",
-    description: "Download reels and video posts in original quality, anonymous and free.",
+    description: "Download reels and video posts in MP4 with iOS-compatible H.264 + AAC audio.",
     icon: PlayCircle,
   },
   {
-    title: "Stories & Highlights",
-    description: "Grab stories and story highlights before they disappear.",
-    icon: Sparkles,
+    title: "Photos & Images",
+    description: "Save public photo posts and carousel images cleanly in full quality.",
+    icon: ImageIcon,
   },
   {
     title: "100% Anonymous",
-    description: "No login, no account, no cookies. Public content downloads instantly.",
+    description: "No login, no account, no cookies. Public content downloads directly.",
     icon: ShieldCheck,
   },
 ];
@@ -42,7 +42,7 @@ export default function HomePage() {
               Download Instagram Posts, Reels &amp; Photos
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-              Paste a link to any public Instagram post, reel, story, highlight, or profile —
+              Paste a link to any public Instagram post, reel, photo, or carousel —
               and save the media instantly. No login required.
             </p>
           </div>

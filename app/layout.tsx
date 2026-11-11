@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Instagram Downloader — Save Posts, Reels, Stories & Photos | SnipVid",
+  title: "Instagram Downloader — Save Posts, Reels, Photos & Carousels | SnipVid",
   description:
-    "Download Instagram posts, reels, stories, highlights, and photos anonymously. Paste an Instagram link and download public content without logging in.",
+    "Download public Instagram posts, reels, photos, and carousels anonymously. Paste an Instagram link and save media without logging in.",
   alternates: {
     canonical: "/",
   },

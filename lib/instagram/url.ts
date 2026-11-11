@@ -54,6 +54,10 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
     return unsupported();
   }
 
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return unsupported();
+  }
+
   const segments = parsed.pathname
     .split("/")
     .filter((segment) => segment.length > 0)
@@ -78,6 +82,9 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
     if (segments[1] === "highlights") {
       return media("highlight", input, segments[2]);
     }
+    if (!segments[1]) {
+      return unsupported();
+    }
     return {
       kind: "story",
       mediaType: "story",
@@ -87,8 +94,20 @@ export function classifyInstagramUrl(input: string): InstagramUrlInfo {
     };
   }
 
-  if (RESERVED_PATHS.has(first)) {
+  if (RESERVED_PATHS.has(first.toLowerCase())) {
     return unsupported();
+  }
+
+  // Instagram's modern share links include the author username before /p/, /tv/,
+  // or /reel/ (e.g. /realadamrose/reel/DfcjnYJzbOv/).
+  if (first !== "share" && segments.length >= 3) {
+    const second = segments[1];
+    if (second === "p" || second === "tv") {
+      return media("post", input, segments[2]);
+    }
+    if (second === "reel" || second === "reels") {
+      return media("reel", input, segments[2]);
+    }
   }
 
   return {

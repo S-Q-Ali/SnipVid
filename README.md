@@ -1,20 +1,25 @@
 # SnipVid
 
-An Instagram downloader. Paste a public post, reel, carousel, or profile link,
-analyze it, and download the media as separate files or as a bounded bulk job.
+An anonymous Instagram downloader built with Next.js and [`yt-dlp`](https://github.com/yt-dlp/yt-dlp).
+Paste a public Instagram post, reel, photo, or carousel link, inspect its media items, and download them individually or together as a bounded bulk job.
 
-The app is a thin, honest wrapper around [yt-dlp](https://github.com/yt-dlp/yt-dlp).
-It does not attempt to reimplement Instagram's API, and it does not work
-around the access limits Instagram applies to unauthenticated clients.
+The app is a thin, honest wrapper around `yt-dlp` and `ffmpeg`. It does not attempt to bypass Instagram's authentication walls or reimplement Instagram's private API.
+
+## Supported Features
+
+- **Reels & Video Posts** (`/reel/...`, `/<user>/reel/...`, `/p/...`, `/tv/...`) — downloaded as iOS-compatible H.264 + AAC `.mp4` files.
+- **Photo Posts & Images** (`/p/...`, `/<user>/p/...`) — extracted cleanly as `.jpg` images.
+- **Carousels** — analyze multi-item posts (photos, videos, or mixed) and download individual items (`--playlist-items`) or all items (up to 50).
+- **100% Anonymous Default** — works without user logins or cookies for publicly accessible Instagram links.
 
 ## Requirements
 
 - Node.js 22+
 - pnpm 10+
-- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp/releases/latest) on `PATH`, or
-  `YTDLP_PATH` pointing at it
+- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp/releases/latest) on `PATH` or configured via `YTDLP_PATH`
+- `ffmpeg` on `PATH` (used by `yt-dlp` to merge video/audio streams and convert thumbnails)
 
-## Setup
+## Local Setup
 
 ```bash
 pnpm install
@@ -22,112 +27,82 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Then open http://localhost:3000. `GET /api/health` reports whether the binary
-and the temporary directory are actually usable, and whether a session is
-configured.
+Open `http://localhost:3000`. `GET /api/health` reports whether `yt-dlp`, temporary storage, and optional session configuration are ready.
+
+## Deploy on Render (Docker)
+
+This repository includes a production [`Dockerfile`](./Dockerfile), [`.dockerignore`](./.dockerignore), and [`render.yaml`](./render.yaml) blueprint with `ffmpeg` and `yt-dlp` pre-installed:
+
+1. Create a **Blueprint** or **Web Service (Docker)** on Render connected to this repository.
+2. Set `Health Check Path` to `/api/health`.
+3. Configure environment variables:
+   - `NODE_ENV=production`
+   - `YTDLP_PATH=/usr/local/bin/yt-dlp`
+   - `STORAGE_TEMP_DIR=/tmp/snipvid`
+   - `INSTAGRAM_ENABLED=true`
+   - `TRUST_PROXY=true`
+   - `NEXT_PUBLIC_SITE_URL=https://your-service.onrender.com`
 
 ## Configuration
 
-All configuration is server-side. Nothing here is read from a request.
+All configuration is server-side. Nothing is accepted from a client request.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `YTDLP_PATH` | `yt-dlp` | Path to the yt-dlp binary. |
-| `INSTAGRAM_ENABLED` | `true` | Set to `false` to return 503 from every Instagram endpoint. |
-| `STORAGE_TEMP_DIR` | `./storage/temp` | Where produced media is written. Point this at a private, writable path in production. |
-| `TRUST_PROXY` | `false` | Set to `true` only when a proxy in front of the app overwrites `x-forwarded-for`. See below. |
-| `INSTAGRAM_COOKIES_FILE` | unset | Path to a Netscape-format cookies file, used as an authenticated session. |
+| `YTDLP_PATH` | `yt-dlp` | Path to the `yt-dlp` binary. |
+| `INSTAGRAM_ENABLED` | `true` | Set to `false` to disable all Instagram endpoints (`503`). |
+| `STORAGE_TEMP_DIR` | `./storage/temp` | Writable directory for temporary downloaded media. |
+| `TRUST_PROXY` | `false` | Set to `true` behind a trusted reverse proxy (e.g. Render) so per-IP rate limiting reads `x-forwarded-for`. |
+| `INSTAGRAM_COOKIES_FILE` | unset | Optional path to a Netscape-format cookies file for operator-authenticated sessions. |
+| `NEXT_PUBLIC_SITE_URL` | `https://snipvid.example.com` | Canonical base URL for `robots.txt` and `sitemap.xml`. |
 
-### `TRUST_PROXY`
+## How a Download Works
 
-`x-forwarded-for` is set by the client, so by default it is ignored and every
-visitor shares one rate-limit bucket. Set `TRUST_PROXY=true` only once you have
-confirmed the edge proxy replaces (or appends to) the header, otherwise anyone
-can rotate the value and bypass the limits.
+1. `POST /api/instagram/analyze` validates the Instagram URL against an allowlist and fetches metadata via `yt-dlp -J` (up to 50 items reported, alongside the real total).
+2. `POST /api/instagram/download` creates a job and returns `202` immediately with a `jobId`.
+3. `GET /api/instagram/jobs/[id]` reports job progress, produced filenames, and honest user-facing errors.
+4. `GET /api/download/[jobId]/[filename]` streams the downloaded file as an attachment.
 
-### Instagram sessions
+## Limits & Security
 
-Anonymous access is the default and stays supported. Instagram increasingly
-answers unauthenticated requests with a login wall, so a persistent session can
-be supplied out of band:
+Values live in [`lib/instagram/service.ts`](./lib/instagram/service.ts) and [`lib/security/service.ts`](./lib/security/service.ts):
 
-```bash
-export INSTAGRAM_COOKIES_FILE=/absolute/path/cookies.txt
-```
-
-The file is read by yt-dlp and never by the app. It is not accepted from a
-request body, and its path is not returned by any endpoint, including
-`/api/health`, which reports only `available`, `anonymous` or `error`.
-
-## How a download works
-
-1. `POST /api/instagram/analyze` validates the link, then asks yt-dlp for
-   metadata. At most 50 items are reported, along with the real total.
-2. `POST /api/instagram/download` creates a job and returns `202` immediately
-   with a job ID. The run itself happens in the background.
-3. `GET /api/instagram/jobs/[id]` reports progress, produced files, and — for a
-   failed job — a message the operator can act on.
-4. `GET /api/download/[jobId]/[filename]` streams a produced file.
-
-Failures are reported honestly. When Instagram refuses the request, the app
-says so instead of suggesting the user check their link.
-
-## Limits
-
-These are deliberate, and the values live in `lib/instagram/service.ts`:
-
-- **50 items** reported per analysis, and per bulk download.
-- **512 MB** per file, passed to yt-dlp as `--max-filesize`.
-- **3** concurrent yt-dlp processes. A job that has to wait stays `pending`
-  rather than being rejected.
-- **60s** for an analysis, **15 minutes** for a download. Both kill the child
-  process on expiry.
-- **200** tracked jobs, each removed with its files an hour after it finishes.
-  Directories left behind by a previous process are collected once the first
-  job is created, but only once they are older than that hour — a directory
-  another instance is still writing to is left alone.
-- Rate limits: 10 analyses and 5 job creations per minute, 30 file fetches per
-  minute, per client address.
-
-`/api/health` covers which of these are in effect for the running instance.
+- **50 items** max per analysis and per bulk download.
+- **512 MB** max per downloaded file (`--max-filesize`).
+- **3** concurrent `yt-dlp` processes (extra jobs wait as `pending`).
+- **60s** timeout for analyze, **15 minutes** for download.
+- **200** tracked jobs in memory; completed job files are cleaned up after 1 hour.
+- **Rate limits:** 10 analyses, 5 downloads, and 30 file fetches per minute per client IP.
+- Strict CSP, `X-Frame-Options: DENY`, `shell: false` spawn arrays, and path-traversal guards.
 
 ## Development
 
 ```bash
 pnpm test           # unit and route tests
-pnpm test:coverage  # same, with the 80% coverage gate
-pnpm test:e2e       # builds, starts the server, drives it over HTTP
+pnpm test:coverage  # unit and route tests with >= 80% coverage gate
+pnpm test:e2e       # builds the app, starts Next.js, and verifies HTTP routes & headers
 pnpm typecheck
 pnpm lint
 pnpm build
 ```
 
-`pnpm test:e2e` needs no extra dependency: it uses Node's built-in test runner
-and `fetch`. It asserts on routing, validation, rate limiting, and security
-headers, and deliberately does not contact Instagram.
+## Known Limitations
 
-## Known limitations
-
-- **Authenticated downloads are untested end to end.** No cookie file was
-  available while this was built, so the session path is covered by unit tests
-  and a health check, not a real download.
-- **Rate limits are per process.** A multi-instance deployment needs a shared
-  store such as Redis. `STORAGE_TEMP_DIR` must also be private to one instance,
-  because cleanup is driven by an in-memory registry.
-- **No HTTP range requests.** Produced files are served as a single attachment;
-  seeking inside a video in the browser is not supported.
-- **Stories and highlights are not implemented.** They are the remaining work
-  in `tasks/plan.md`.
+- **Stories, highlights, and profile bulk scraping:** Instagram requires authentication for stories and highlights, and `yt-dlp` currently marks profile extraction (`instagram:user`) as broken upstream. Public `/p/`, `/reel/`, and `/tv/` links work anonymously.
+- **Single-instance in-memory state:** Job tracking and rate limiting live in memory; multi-instance deployments require a shared store (e.g. Redis) and per-instance `STORAGE_TEMP_DIR`.
+- **No HTTP range requests:** Downloaded files are served as complete attachments.
 
 ## Layout
 
-```
+```text
 app/api/instagram/     analyze, download, and job polling routes
-app/api/download/      file serving
-app/api/health/        readiness, including yt-dlp and session state
-lib/instagram/         url parsing, yt-dlp execution, job registry
-lib/security/          rate limiting, security headers, shared validation
-middleware.ts          applies the security headers to every response
+app/api/download/      file streaming route
+app/api/health/        readiness check (yt-dlp, storage, session)
+lib/instagram/         URL classification, yt-dlp execution, job retention
+lib/security/          rate limiting, security headers, UUID validation
+middleware.ts          applies security headers across pages and API routes
+Dockerfile             production container with Node 22, pnpm, ffmpeg, and yt-dlp
+render.yaml            Render Blueprint deployment config
 ```
 
-`CONSTRAINTS.md` records the rules this code is held to, and why.
+See [`CONSTRAINTS.md`](./CONSTRAINTS.md) for the engineering quality gates enforced on this codebase.
