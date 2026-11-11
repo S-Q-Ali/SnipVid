@@ -1,0 +1,15 @@
+.git
+.github
+.next
+.opencode
+coverage
+node_modules
+storage
+.env
+.env.local
+.env*.local
+cookies.txt
+*cookies*.txt
+*.cookies
+tsconfig.tsbuildinfo
+session_state.txt

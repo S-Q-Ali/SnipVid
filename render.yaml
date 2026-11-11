@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: snipvid
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: YTDLP_PATH
+        value: /usr/local/bin/yt-dlp
+      - key: STORAGE_TEMP_DIR
+        value: /tmp/snipvid
+      - key: INSTAGRAM_ENABLED
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
