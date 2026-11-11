@@ -28,6 +28,7 @@ All notable changes to SnipVid are documented in this file.
 - Classification support for profile-prefixed Instagram media links (`/<username>/reel/<id>/`, `/<username>/p/<id>/`, `/<username>/tv/<id>/`).
 
 ### Changed
+- Standardized repository branch handling: added CI PR branch filtering, least-privilege `contents: read` permissions, concurrency cancellation in `.github/workflows/ci.yml`, Dependabot grouping/major-bump ignores in `.github/dependabot.yml`, `.gitattributes` LF normalization, and Trunk-Based branching guidelines in `CONTRIBUTING.md`.
 - Migrated production hosting from Vercel to full-stack Docker deployment on Render (`Dockerfile`, `.dockerignore`, `render.yaml`, `yt-dlp[default,curl-cffi]` + `ffmpeg`).
 - Aligned homepage copy, metadata, and form hints honestly to supported anonymous features (Posts, Reels, Photos, and Carousels).
 - Updated `README.md` with production setup, deployment instructions, API flow, limits, and known limitations.
