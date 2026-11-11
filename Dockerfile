@@ -1,12 +1,12 @@
 FROM node:22-slim
 
-# Install ffmpeg for video/audio merging and standalone yt-dlp_linux binary
-# (includes bundled curl_cffi and TLS certificates without needing system Python).
+# Install ffmpeg for video/audio merging and yt-dlp via pip so it runs
+# directly without PyInstaller per-invocation unpacking delays on Render.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg curl ca-certificates \
-    && curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
-    && chmod a+rx /usr/local/bin/yt-dlp \
+    ffmpeg python3 python3-pip ca-certificates \
+    && pip3 install --no-cache-dir --break-system-packages "yt-dlp[default,curl-cffi]" \
     && rm -rf /var/lib/apt/lists/* \
+    && test -x /usr/local/bin/yt-dlp \
     && yt-dlp --version \
     && ffmpeg -version >/dev/null
 
