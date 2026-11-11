@@ -1,7 +1,13 @@
 # SnipVid
 
-An anonymous Instagram downloader built with Next.js and [`yt-dlp`](https://github.com/yt-dlp/yt-dlp).
+[![CI](https://github.com/S-Q-Ali/SnipVid/actions/workflows/ci.yml/badge.svg)](https://github.com/S-Q-Ali/SnipVid/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live-Render-46E3B7?logo=render&logoColor=white)](https://snipvid.onrender.com)
+
+An anonymous Instagram media downloader built with Next.js 15, TypeScript, Tailwind CSS, and [`yt-dlp`](https://github.com/yt-dlp/yt-dlp).
 Paste a public Instagram post, reel, photo, or carousel link, inspect its media items, and download them individually or together as a bounded bulk job.
+
+**Live App:** <https://snipvid.onrender.com>
 
 The app is a thin, honest wrapper around `yt-dlp` and `ffmpeg`. It does not attempt to bypass Instagram's authentication walls or reimplement Instagram's private API.
 
@@ -56,12 +62,15 @@ All configuration is server-side. Nothing is accepted from a client request.
 | `INSTAGRAM_COOKIES_FILE` | unset | Optional path to a Netscape-format cookies file for operator-authenticated sessions. |
 | `NEXT_PUBLIC_SITE_URL` | `https://snipvid.example.com` | Canonical base URL for `robots.txt` and `sitemap.xml`. |
 
-## How a Download Works
+## API Endpoints
 
-1. `POST /api/instagram/analyze` validates the Instagram URL against an allowlist and fetches metadata via `yt-dlp -J` (up to 50 items reported, alongside the real total).
-2. `POST /api/instagram/download` creates a job and returns `202` immediately with a `jobId`.
-3. `GET /api/instagram/jobs/[id]` reports job progress, produced filenames, and honest user-facing errors.
-4. `GET /api/download/[jobId]/[filename]` streams the downloaded file as an attachment.
+| Method & Path | Purpose |
+| --- | --- |
+| `POST /api/instagram/analyze` | Validates an Instagram URL against an allowlist and fetches metadata via `yt-dlp -J` (up to 50 items reported, alongside the real total). |
+| `POST /api/instagram/download` | Creates a download job and returns `202` immediately with a `jobId`. |
+| `GET /api/instagram/jobs/[id]` | Reports job status, progress, produced filenames, and friendly errors. |
+| `GET /api/download/[jobId]/[filename]` | Streams the downloaded `.mp4` or `.jpg` file as an attachment. |
+| `GET /api/health` | Reports `yt-dlp` binary status/version, temporary storage writability, and session status (`anonymous` by default). |
 
 ## Limits & Security
 
@@ -105,4 +114,4 @@ Dockerfile             production container with Node 22, pnpm, ffmpeg, and yt-d
 render.yaml            Render Blueprint deployment config
 ```
 
-See [`CONSTRAINTS.md`](./CONSTRAINTS.md) for the engineering quality gates enforced on this codebase.
+See [`CONSTRAINTS.md`](./CONSTRAINTS.md) for engineering quality gates, [`CONTRIBUTING.md`](./CONTRIBUTING.md) for contributor guidelines, [`SECURITY.md`](./SECURITY.md) for security policy, [`CHANGELOG.md`](./CHANGELOG.md) for release history, and [`LICENSE`](./LICENSE) for MIT license terms.
