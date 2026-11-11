@@ -192,6 +192,9 @@ function releaseRunSlot(): void {
   if (next) next();
 }
 
+/** Upper bound on JSON stdout buffered during analyze (16 MB), protecting container RAM. */
+export const MAX_ANALYZE_JSON_BYTES = 16 * 1024 * 1024;
+
 function runJson(args: string[]): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const proc = spawnYtDlp(args);
@@ -217,8 +220,21 @@ function runJson(args: string[]): Promise<Record<string, unknown>> {
       action();
     };
 
-    proc.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
-    proc.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+    proc.stdout.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      stdout += chunk.toString();
+      if (Buffer.byteLength(stdout) > MAX_ANALYZE_JSON_BYTES) {
+        proc.kill();
+        settle(() =>
+          reject(new YtDlpError("Instagram returned an oversized response. Please try again."))
+        );
+      }
+    });
+    proc.stderr.on("data", (chunk: Buffer) => {
+      if (stderr.length < MAX_DIAGNOSTICS_CHARS) {
+        stderr += chunk.toString().slice(0, MAX_DIAGNOSTICS_CHARS - stderr.length);
+      }
+    });
     proc.on("error", (err) => {
       console.error("yt-dlp spawn failed:", redactSecrets(err.message));
       settle(() => reject(new YtDlpError(STARTUP_HINT)));

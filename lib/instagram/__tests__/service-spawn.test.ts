@@ -392,6 +392,14 @@ describe("analyzeInstagramUrl (yt-dlp -J)", () => {
     spawned[0].child.emit("close", 0);
     await expect(promise).rejects.toThrow(/unexpected data/);
   });
+
+  it("kills the child process and rejects when -J output exceeds MAX_ANALYZE_JSON_BYTES", async () => {
+    const promise = analyzeInstagramUrl(urlInfo);
+    const oversized = Buffer.alloc(16 * 1024 * 1024 + 1024, "a");
+    spawned[0].child.stdout.emit("data", oversized);
+    await expect(promise).rejects.toThrow(/oversized response/);
+    expect(spawned[0].child.kill).toHaveBeenCalled();
+  });
 });
 
 describe("resource bounds", () => {

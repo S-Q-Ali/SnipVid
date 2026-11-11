@@ -60,6 +60,7 @@ All configuration is server-side. Nothing is accepted from a client request.
 | `STORAGE_TEMP_DIR` | `./storage/temp` | Writable directory for temporary downloaded media. |
 | `TRUST_PROXY` | `false` | Set to `true` behind a trusted reverse proxy (e.g. Render) so per-IP rate limiting reads `x-forwarded-for`. |
 | `INSTAGRAM_COOKIES_FILE` | unset | Optional path to a Netscape-format cookies file for operator-authenticated sessions. |
+| `HEALTH_SECRET` | unset | Optional secret header (`x-health-token`) to unlock detailed checks on `GET /api/health`. |
 | `NEXT_PUBLIC_SITE_URL` | `https://snipvid.example.com` | Canonical base URL for `robots.txt` and `sitemap.xml`. |
 
 ## API Endpoints
@@ -70,7 +71,7 @@ All configuration is server-side. Nothing is accepted from a client request.
 | `POST /api/instagram/download` | Creates a download job and returns `202` immediately with a `jobId`. |
 | `GET /api/instagram/jobs/[id]` | Reports job status, progress, produced filenames, and friendly errors. |
 | `GET /api/download/[jobId]/[filename]` | Streams the downloaded `.mp4` or `.jpg` file as an attachment. |
-| `GET /api/health` | Reports `yt-dlp` binary status/version, temporary storage writability, and session status (`anonymous` by default). |
+| `GET /api/health` | Returns minimal readiness (`{ status, timestamp }`) publicly; returns detailed `checks` only when `HEALTH_SECRET` matches `x-health-token`. |
 
 ## Limits & Security
 
@@ -81,7 +82,7 @@ Values live in [`lib/instagram/service.ts`](./lib/instagram/service.ts) and [`li
 - **3** concurrent `yt-dlp` processes (extra jobs wait as `pending`).
 - **60s** timeout for analyze, **15 minutes** for download.
 - **200** tracked jobs in memory; completed job files are cleaned up after 1 hour.
-- **Rate limits:** 10 analyses, 5 downloads, and 30 file fetches per minute per client IP.
+- **Rate limits:** 10 analyses, 5 downloads, 120 status polls, 30 file fetches, and 60 health checks per minute per client IP.
 - Strict CSP, `X-Frame-Options: DENY`, `shell: false` spawn arrays, and path-traversal guards.
 
 ## Development

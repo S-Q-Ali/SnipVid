@@ -125,5 +125,8 @@ export const rateLimiters = {
    * Job status polling (1.2s UI interval + bursts). Bounded to prevent
    * unthrottled UUID lookup floods.
    */
-  instagramJobStatus: new RateLimiter(120, 60000), // 120 polls per minute
+  instagramJobStatus: new RateLimiter(120, 60000), // 120 polls per minute,
+
+  /** Health readiness checks. Bounded so public callers cannot spam Python spawns. */
+  healthCheck: new RateLimiter(60, 60000), // 60 health checks per minute
 };

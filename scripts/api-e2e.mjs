@@ -69,14 +69,13 @@ after(async () => {
 const VALID_UUID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
 
 describe("GET /api/health", () => {
-  it("reports the three readiness checks", async () => {
+  it("reports public readiness status without exposing internal checks", async () => {
     const res = await fetch(`${BASE}/api/health`);
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(["ok", "degraded"].includes(body.status));
-    assert.ok(body.checks.ytdlp, "ytdlp check missing");
-    assert.ok(body.checks.storage, "storage check missing");
-    assert.ok(body.checks.session, "session check missing");
+    assert.ok(typeof body.timestamp === "string", "timestamp missing");
+    assert.equal(body.checks, undefined, "internal checks leaked to public caller");
   });
 
   it("never leaks the configured cookie path", async () => {

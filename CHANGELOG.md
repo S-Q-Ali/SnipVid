@@ -5,6 +5,9 @@ All notable changes to SnipVid are documented in this file.
 ## [Unreleased]
 
 ### Security & Hardening
+- Restricted `GET /api/health` public responses to `{ status, timestamp }` (gating detailed diagnostic `checks` behind optional `HEALTH_SECRET`), added 60s single-flight caching for the `yt-dlp` probe (8s timeout), and enforced per-IP rate limiting (`60/min`).
+- Added a `16 MB` stdout cap (`MAX_ANALYZE_JSON_BYTES`) and bounded stderr collection in `yt-dlp -J` analysis.
+- Added `.github/dependabot.yml` for automated weekly dependency updates across npm, Docker, and GitHub Actions.
 - Upgraded `next` and `eslint-config-next` from `15.5.26` to `15.5.29` (patching Image Optimization RCE `GHSA-2464-fhr4-w9xw`, Server Actions DoS `GHSA-p3m5-59mp-jv5r`, and cache-poisoning advisories).
 - Configured `images: { unoptimized: true }` in `next.config.ts`.
 - Added rate limiting (`120/min`) and `Retry-After: 60` headers to `GET /api/instagram/jobs/[id]` and `Retry-After: 60` to `GET /api/download/[jobId]/[filename]`.
