@@ -8,6 +8,7 @@
 
 ## Verification Checklist
 
+- [ ] Short-lived branch created from `main` using `feat/`, `fix/`, `chore/`, `refactor/`, or `docs/` naming
 - [ ] `pnpm typecheck` passes with zero errors
 - [ ] `pnpm lint` passes with zero errors
 - [ ] `pnpm test:coverage` passes and meets the >= 80% coverage gate

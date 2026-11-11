@@ -27,6 +27,21 @@ pnpm test:coverage  # >= 80% line coverage across lib/instagram, lib/security, a
 pnpm test:e2e       # Next.js production build + API E2E suite
 ```
 
+## Branching & Pull Request Workflow
+
+SnipVid follows **Trunk-Based Development** so `main` remains deployable at all times:
+
+- **Branch from `main`** for every change and keep branches short-lived (1–3 days).
+- **Use clear branch prefixes:**
+  - `feat/<short-description>` — new features
+  - `fix/<short-description>` — bug fixes
+  - `chore/<short-description>` — tooling, dependencies, or CI configuration
+  - `refactor/<short-description>` — internal cleanup without behavior change
+  - `docs/<short-description>` — documentation updates
+- **Keep commits atomic & scoped:** Use Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`) and avoid mixing formatting-only edits with behavior changes.
+- **Target `main` via Pull Request:** Ensure both CI jobs (`verify` and `e2e`) pass before merging. Do not force-push shared branches (`main`).
+- **Clean up after merge:** Remote PR branches are deleted automatically on merge (`delete_branch_on_merge`); run `git checkout main && git pull --prune` locally to drop stale remote tracking refs.
+
 ## Rules for Contributors
 
 - Keep `child_process.spawn` calls strictly `shell: false` with argument arrays.
