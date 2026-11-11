@@ -43,7 +43,7 @@
 ## Environment & Deployment
 
 - `yt-dlp` (or `YTDLP_PATH`) must be present at runtime; surfaced in `/api/health`.
-- Defense-in-depth: `INSTAGRAM_ENABLED` env flag gates download routes (`false` = disabled, safest default).
+- Defense-in-depth: `INSTAGRAM_ENABLED` env flag gates download routes (defaults enabled; set `false` to disable routes with `503`).
 - Jobs store and rate limiter are in-memory → single-instance only. Multi-instance deployment is a documented limitation (requires Redis-backed store + limiter — out of current scope).
 
 ## Exemptions & Escalation

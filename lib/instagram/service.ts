@@ -257,7 +257,7 @@ export async function analyzeInstagramUrl(urlInfo: InstagramUrlInfo): Promise<In
 export async function analyzeFromInput(input: string): Promise<InstagramAnalyzeResult> {
   const info = classifyInstagramUrl(input);
   if (info.kind === "unsupported") {
-    throw new YtDlpError("Only Instagram post, reel, story, highlight, and profile links are supported.");
+    throw new YtDlpError("Only Instagram links (posts, reels, photos, and carousels) are supported.");
   }
   return analyzeInstagramUrl(info);
 }

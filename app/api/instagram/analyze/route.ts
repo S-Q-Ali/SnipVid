@@ -1,10 +1,16 @@
 import { analyzeFromInput, YtDlpError } from "@/lib/instagram/service";
 import { rateLimiters } from "@/lib/security/service";
-import { clientIp, isInstagramEnabled, jsonResponse } from "@/lib/instagram/http";
+import {
+  clientIp,
+  isInstagramEnabled,
+  jsonResponse,
+  logRouteError,
+  parseUrlRequestBody,
+} from "@/lib/instagram/http";
 
 export const runtime = "nodejs";
 
-function mapError(err: unknown): ReturnType<typeof jsonResponse> {
+function mapError(err: unknown, request: Request): ReturnType<typeof jsonResponse> {
   if (err instanceof YtDlpError) {
     const message = err.message;
     if (message.includes("Only Instagram")) {
@@ -15,7 +21,7 @@ function mapError(err: unknown): ReturnType<typeof jsonResponse> {
     }
     return jsonResponse({ error: message }, 422);
   }
-  console.error("instagram analyze error:", err);
+  logRouteError("instagram_analyze_error", request, err);
   return jsonResponse({ error: "Something went wrong. Please try again." }, 500);
 }
 
@@ -33,25 +39,15 @@ export async function POST(request: Request) {
     );
   }
 
-  let raw: unknown;
-  try {
-    raw = await request.json();
-  } catch {
-    return jsonResponse({ error: "Invalid request body." }, 400);
-  }
-
-  const url =
-    typeof raw === "object" && raw !== null && typeof (raw as { url?: unknown }).url === "string"
-      ? (raw as { url: string }).url.trim()
-      : "";
-  if (!url) {
-    return jsonResponse({ error: "A URL is required." }, 400);
+  const parsed = await parseUrlRequestBody(request);
+  if ("errorResponse" in parsed) {
+    return parsed.errorResponse;
   }
 
   try {
-    const result = await analyzeFromInput(url);
+    const result = await analyzeFromInput(parsed.url);
     return jsonResponse({ ...result }, 200);
   } catch (err) {
-    return mapError(err);
+    return mapError(err, request);
   }
 }

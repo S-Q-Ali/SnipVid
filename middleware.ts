@@ -15,19 +15,31 @@ const PageHeaders = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
+const REQUEST_ID_RE = /^[a-zA-Z0-9._-]{1,64}$/;
+
 /**
- * Apply the security headers to every response.
+ * Apply the security headers and request correlation ID to every response.
  *
  * They used to be set only by the helper the three Instagram API routes share,
  * so every HTML page and the health route were served with none of them.
  */
 export function middleware(request: NextRequest) {
   const isApi = request.nextUrl.pathname.startsWith("/api/");
-  const response = NextResponse.next();
+  const incomingId = request.headers.get("x-request-id")?.trim();
+  const requestId =
+    incomingId && REQUEST_ID_RE.test(incomingId) ? incomingId : crypto.randomUUID();
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
 
   for (const [name, value] of Object.entries(isApi ? SecurityHeaders : PageHeaders)) {
     response.headers.set(name, value);
   }
+  response.headers.set("x-request-id", requestId);
   return response;
 }
 

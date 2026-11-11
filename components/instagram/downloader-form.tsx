@@ -105,9 +105,13 @@ export function InstagramDownloaderForm() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  const running =
+    analyzing || downloading || job?.status === "pending" || job?.status === "processing";
+
   const handleAnalyze = useCallback(
     async (e?: FormEvent) => {
       e?.preventDefault();
+      if (running) return;
       const trimmed = url.trim();
       if (!trimmed) {
         setAnalyzeError("Paste an Instagram link to get started.");
@@ -137,7 +141,7 @@ export function InstagramDownloaderForm() {
         setAnalyzing(false);
       }
     },
-    [url, stopPolling]
+    [url, running, stopPolling]
   );
 
   const handleDownload = useCallback(
@@ -168,6 +172,19 @@ export function InstagramDownloaderForm() {
             const pollRes = await fetch(`/api/instagram/jobs/${encodeURIComponent(jobId)}`, {
               cache: "no-store",
             });
+            if (!pollRes.ok) {
+              stopPolling();
+              setJob(null);
+              if (pollRes.status === 404) {
+                setDownloadError(
+                  "This download job expired or could not be found. Please start a new download."
+                );
+                return;
+              }
+              const errBody = await pollRes.json().catch(() => null);
+              setDownloadError(cleanError(errBody));
+              return;
+            }
             const j: Job = await pollRes.json();
             setJob(j);
             if (j.status === "completed" || j.status === "failed") {
@@ -175,6 +192,7 @@ export function InstagramDownloaderForm() {
             }
           } catch {
             stopPolling();
+            setJob(null);
             setDownloadError("Lost connection while checking download progress.");
           }
         }, 1200);
@@ -188,13 +206,10 @@ export function InstagramDownloaderForm() {
     [url, stopPolling]
   );
 
-  const running =
-    analyzing || downloading || job?.status === "pending" || job?.status === "processing";
-
   return (
     <div className="w-full max-w-2xl mx-auto">
       <form
-        onSubmit={running ? undefined : handleAnalyze}
+        onSubmit={handleAnalyze}
         className="flex flex-col sm:flex-row gap-3"
       >
         <div className="relative flex-1">

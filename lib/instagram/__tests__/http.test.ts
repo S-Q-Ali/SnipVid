@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 
-import { clientIp, isInstagramEnabled } from "../http";
+import { clientIp, isInstagramEnabled, logRouteError, MAX_URL_LENGTH, parseUrlRequestBody } from "../http";
 
 function requestWith(headers: Record<string, string>): Request {
   return new Request("https://snipvid.example/api/instagram/analyze", { headers });
@@ -81,5 +81,55 @@ describe("isInstagramEnabled", () => {
   it("is off when set to false", () => {
     vi.stubEnv("INSTAGRAM_ENABLED", "false");
     expect(isInstagramEnabled()).toBe(false);
+  });
+});
+
+describe("parseUrlRequestBody", () => {
+  it("extracts trimmed URL and raw payload", async () => {
+    const req = new Request("https://snipvid.example/api/instagram/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "  https://www.instagram.com/reel/abc/  ", itemIndex: 2 }),
+    });
+    const parsed = await parseUrlRequestBody(req);
+    expect("url" in parsed).toBe(true);
+    if ("url" in parsed) {
+      expect(parsed.url).toBe("https://www.instagram.com/reel/abc/");
+      expect(parsed.raw.itemIndex).toBe(2);
+    }
+  });
+
+  it("rejects URLs exceeding MAX_URL_LENGTH with 400", async () => {
+    const req = new Request("https://snipvid.example/api/instagram/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: `https://www.instagram.com/p/${"a".repeat(MAX_URL_LENGTH)}/` }),
+    });
+    const parsed = await parseUrlRequestBody(req);
+    expect("errorResponse" in parsed).toBe(true);
+    if ("errorResponse" in parsed) {
+      expect(parsed.errorResponse.status).toBe(400);
+    }
+  });
+});
+
+describe("logRouteError", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs structured JSON with requestId when header is provided", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const req = requestWith({ "x-request-id": "req-123" });
+    logRouteError("test_event", req, new Error("boom"));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(spy.mock.calls[0][0]));
+    expect(payload).toEqual({
+      level: "error",
+      event: "test_event",
+      requestId: "req-123",
+      message: "boom",
+    });
   });
 });

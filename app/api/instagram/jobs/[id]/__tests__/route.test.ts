@@ -9,6 +9,7 @@ vi.mock("@/lib/instagram/service", async (importOriginal) => {
 });
 
 import { getDownloadJob } from "@/lib/instagram/service";
+import { rateLimiters } from "@/lib/security/service";
 import { GET } from "../route";
 import type { DownloadJob } from "@/lib/instagram/types";
 
@@ -24,10 +25,15 @@ function job(overrides: Partial<DownloadJob> = {}): DownloadJob {
     ...overrides,
   };
 }
-function get(id: string) {
-  return GET(new Request(`http://localhost/api/instagram/jobs/${id}`), {
-    params: Promise.resolve({ id }),
-  });
+function get(id: string, ip = "10.0.8.1") {
+  return GET(
+    new Request(`http://localhost/api/instagram/jobs/${id}`, {
+      headers: { "x-forwarded-for": ip },
+    }),
+    {
+      params: Promise.resolve({ id }),
+    }
+  );
 }
 
 describe("GET /api/instagram/jobs/[id]", () => {
@@ -103,5 +109,22 @@ describe("GET /api/instagram/jobs/[id]", () => {
     const body = await res.json();
 
     expect(JSON.stringify(body)).not.toContain("secret");
+  });
+
+  it("rate limits excessive status polling", async () => {
+    vi.stubEnv("TRUST_PROXY", "true");
+    vi.mocked(getDownloadJob).mockReturnValue(job());
+    const budget = rateLimiters.instagramJobStatus.maxRequests;
+    const ip = "10.0.88.2";
+
+    for (let i = 0; i < budget; i += 1) {
+      const ok = await get("11111111-2222-3333-4444-555555555555", ip);
+      expect(ok.status).toBe(200);
+    }
+
+    const limited = await get("11111111-2222-3333-4444-555555555555", ip);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
+    vi.unstubAllEnvs();
   });
 });

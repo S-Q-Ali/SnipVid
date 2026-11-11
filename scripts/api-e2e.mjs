@@ -92,6 +92,7 @@ describe("security headers", () => {
     assert.ok(res.headers.get("x-frame-options"), "x-frame-options missing");
     assert.ok(res.headers.get("referrer-policy"), "referrer-policy missing");
     assert.ok(res.headers.get("content-security-policy"), "API CSP missing");
+    assert.ok(res.headers.get("x-request-id"), "x-request-id missing");
   });
 
   it("are present on an HTML page", async () => {

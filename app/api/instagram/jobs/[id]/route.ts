@@ -1,6 +1,7 @@
 import { getDownloadJob } from "@/lib/instagram/service";
-import { isInstagramEnabled, jsonResponse } from "@/lib/instagram/http";
+import { clientIp, isInstagramEnabled, jsonResponse } from "@/lib/instagram/http";
 import { isJobId } from "@/lib/security/identifiers";
+import { rateLimiters } from "@/lib/security/service";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,15 @@ export async function GET(
 ) {
   if (!isInstagramEnabled()) {
     return jsonResponse({ error: "Instagram downloads are currently disabled." }, 503);
+  }
+
+  const ip = clientIp(request);
+  if (!rateLimiters.instagramJobStatus.isAllowed(ip).allowed) {
+    return jsonResponse(
+      { error: "Too many requests. Please try again in a minute." },
+      429,
+      { "Retry-After": "60" }
+    );
   }
 
   const { id } = await params;

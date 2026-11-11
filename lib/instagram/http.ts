@@ -1,12 +1,56 @@
 import { NextResponse } from "next/server";
 import { SecurityHeaders } from "@/lib/security/service";
 
+export const MAX_URL_LENGTH = 2048;
+
 export function jsonResponse(
   body: Record<string, unknown>,
   status: number,
   extraHeaders: Record<string, string> = {}
 ) {
   return NextResponse.json(body, { status, headers: { ...SecurityHeaders, ...extraHeaders } });
+}
+
+/**
+ * Extract and validate a trimmed URL string from a JSON request body.
+ * Returns either `{ url }` or a ready 400 JSON error response.
+ */
+export async function parseUrlRequestBody(
+  request: Request
+): Promise<
+  { url: string; raw: Record<string, unknown> } | { errorResponse: ReturnType<typeof jsonResponse> }
+> {
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return { errorResponse: jsonResponse({ error: "Invalid request body." }, 400) };
+  }
+
+  const record = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : null;
+  const url = record && typeof record.url === "string" ? record.url.trim() : "";
+  if (!url) {
+    return { errorResponse: jsonResponse({ error: "A URL is required." }, 400) };
+  }
+  if (url.length > MAX_URL_LENGTH) {
+    return { errorResponse: jsonResponse({ error: "URL is too long." }, 400) };
+  }
+
+  return { url, raw: record! };
+}
+
+/** Emit a structured JSON error log tied to the incoming request ID when present. */
+export function logRouteError(event: string, request: Request, error: unknown): void {
+  const requestId = request.headers.get("x-request-id")?.trim() || undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event,
+      requestId,
+      message,
+    })
+  );
 }
 
 export function isInstagramEnabled(): boolean {

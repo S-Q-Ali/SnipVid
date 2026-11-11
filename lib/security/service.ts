@@ -120,4 +120,10 @@ export const rateLimiters = {
    * this route reads from disk.
    */
   instagramFile: new RateLimiter(30, 60000), // 30 files per minute,
+
+  /**
+   * Job status polling (1.2s UI interval + bursts). Bounded to prevent
+   * unthrottled UUID lookup floods.
+   */
+  instagramJobStatus: new RateLimiter(120, 60000), // 120 polls per minute
 };

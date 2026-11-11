@@ -4,6 +4,17 @@ All notable changes to SnipVid are documented in this file.
 
 ## [Unreleased]
 
+### Security & Hardening
+- Upgraded `next` and `eslint-config-next` from `15.5.26` to `15.5.29` (patching Image Optimization RCE `GHSA-2464-fhr4-w9xw`, Server Actions DoS `GHSA-p3m5-59mp-jv5r`, and cache-poisoning advisories).
+- Configured `images: { unoptimized: true }` in `next.config.ts`.
+- Added rate limiting (`120/min`) and `Retry-After: 60` headers to `GET /api/instagram/jobs/[id]` and `Retry-After: 60` to `GET /api/download/[jobId]/[filename]`.
+- Added `MAX_URL_LENGTH` (`2048`) request body validation, `x-request-id` correlation headers in `middleware.ts`, and structured JSON error logging (`logRouteError`).
+- Enabled `ignore-scripts=true` in `.npmrc` and added a container `HEALTHCHECK` in `Dockerfile`.
+
+### Fixed
+- Handled non-OK job polling responses (`404`/`429`/`503`) cleanly in the downloader form instead of polling indefinitely, and prevented native form submits when pressing Enter while a request is running.
+- Aligned unsupported-URL API errors across `/api/instagram/analyze` and `/api/instagram/download` with the supported feature scope.
+
 ### Added
 - Production GitHub documentation (`LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, and `.github` issue/PR templates).
 - Support for extracting single photo posts and mixed carousels as `.jpg` images via `yt-dlp` thumbnail flags (`--ignore-no-formats-error`, `--write-thumbnail`, `--convert-thumbnails jpg`), with automatic pruning of redundant video thumbnails.

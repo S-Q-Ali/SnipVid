@@ -6,7 +6,7 @@ import { Readable } from "stream";
 import { TEMP_ROOT } from "@/lib/instagram/service";
 import { isJobId } from "@/lib/security/identifiers";
 import { rateLimiters } from "@/lib/security/service";
-import { clientIp } from "@/lib/instagram/http";
+import { clientIp, logRouteError } from "@/lib/instagram/http";
 
 export const runtime = "nodejs";
 
@@ -68,7 +68,7 @@ export async function GET(
     if (!rateLimiters.instagramFile.isAllowed(ip).allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please wait a moment and try again." },
-        { status: 429 }
+        { status: 429, headers: { "Retry-After": "60" } }
       );
     }
 
@@ -104,7 +104,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Download error:", error);
+    logRouteError("instagram_file_download_error", request, error);
     return NextResponse.json({ error: "Failed to download file" }, { status: 500 });
   }
 }
