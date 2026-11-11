@@ -116,6 +116,22 @@ describe("security headers", () => {
     const csp = (await (await fetch(`${BASE}/`)).headers.get("content-security-policy")) ?? "";
     assert.match(csp, /script-src[^;]*'unsafe-inline'/);
   });
+
+  it("exposes SEO metadata, manifest, robots, and sitemap", async () => {
+    const page = await (await fetch(`${BASE}/`)).text();
+    assert.match(page, /<meta[^>]+property="og:title"/i);
+    assert.match(page, /<meta[^>]+name="twitter:card"/i);
+    assert.match(page, /<script[^>]+type="application\/ld\+json"/i);
+
+    const robots = await fetch(`${BASE}/robots.txt`);
+    assert.equal(robots.status, 200);
+
+    const sitemap = await fetch(`${BASE}/sitemap.xml`);
+    assert.equal(sitemap.status, 200);
+
+    const manifest = await fetch(`${BASE}/manifest.webmanifest`);
+    assert.equal(manifest.status, 200);
+  });
 });
 
 describe("POST /api/instagram/analyze", () => {

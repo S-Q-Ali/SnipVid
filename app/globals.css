@@ -2,55 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme tokens */
+/* Theme tokens — calibrated for WCAG AA+ readability and clean studio contrast */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 47.4% 11.2%;
+  --background: 210 25% 98%;
+  --foreground: 222 47% 11%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 47.4% 11.2%;
+  --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 47.4% 11.2%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 222.2 83.2% 97.5%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 215 20.2% 65.1%;
-  --muted-foreground: 215 20.2% 56.1%;
-  --accent: 221.2 83.2% 53.3%;
-  --destructive: 0 84.6% 60.2%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 221 83% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 214 32% 94%;
+  --secondary-foreground: 222 47% 15%;
+  --muted: 214 25% 92%;
+  --muted-foreground: 215 24% 38%;
+  --accent: 214 32% 94%;
+  --accent-foreground: 222 47% 15%;
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 26% 88%;
+  --input: 214 26% 85%;
+  --ring: 221 83% 48%;
 }
 
 /* Dark mode */
 .dark {
-  --background: 222.2 84% 4.9%;
+  --background: 222 47% 6%;
   --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
+  --card: 222 42% 9%;
   --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
+  --popover: 222 42% 9%;
   --popover-foreground: 210 40% 98%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 222.2 83.2% 97.5%;
-  --secondary: 215 27.9% 16.9%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 215 27.9% 16.9%;
-  --muted-foreground: 215 27.9% 65.1%;
-  --accent: 221.2 83.2% 53.3%;
-  --destructive: 0 62.8% 30.6%;
-  --border: 215 27.9% 16.9%;
-  --input: 215 27.9% 16.9%;
-  --ring: 221.2 83.2% 53.3%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 30% 16%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 217 28% 17%;
+  --muted-foreground: 215 22% 70%;
+  --accent: 217 30% 16%;
+  --accent-foreground: 210 40% 96%;
+  --destructive: 0 68% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217 26% 18%;
+  --input: 217 26% 20%;
+  --ring: 217 91% 60%;
 }
 
-/* Base styles */
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
@@ -62,14 +69,15 @@ img {
   height: auto;
 }
 
-/* Focus states */
 *:focus-visible {
-  outline: 2px solid hsl(var(--primary));
+  outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

@@ -19,6 +19,8 @@ All notable changes to SnipVid are documented in this file.
 - Aligned unsupported-URL API errors across `/api/instagram/analyze` and `/api/instagram/download` with the supported feature scope.
 
 ### Added
+- Full SEO foundation: `lib/site.ts` canonical configuration, OpenGraph & Twitter Card metadata, dynamic `opengraph-image.tsx`, SVG brand `icon.svg`, `manifest.ts`, `robots.ts` host/sitemap directives, and `WebApplication` + `FAQPage` JSON-LD structured data.
+- Polished UI/UX styling: mapped semantic theme CSS variables into `tailwind.config.ts`, refined WCAG AA+ color contrast, added `Plus Jakarta Sans` + `Inter` display/body typography, clipboard Paste and Clear buttons, broken-thumbnail fallback, accessible progressbar (`role="progressbar"`), How-it-works section, and interactive FAQ accordion.
 - Production GitHub documentation (`LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, and `.github` issue/PR templates).
 - Support for extracting single photo posts and mixed carousels as `.jpg` images via `yt-dlp` thumbnail flags (`--ignore-no-formats-error`, `--write-thumbnail`, `--convert-thumbnails jpg`), with automatic pruning of redundant video thumbnails.
 - MIME type mappings for `.jpg`, `.jpeg`, `.png`, and `.webp` in `/api/download/[jobId]/[filename]`.
