@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:26-slim
 
 # Install ffmpeg for video/audio merging and yt-dlp via pip so it runs
 # directly without PyInstaller per-invocation unpacking delays on Render.
